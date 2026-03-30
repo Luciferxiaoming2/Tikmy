@@ -1,0 +1,29 @@
+:root,
+page {
+  --mt-background: #131313;
+  --mt-surface-low: #1c1b1b;
+  --mt-surface-high: #2a2a2a;
+  --mt-surface-highest: #353534;
+  --mt-primary: #56e472;
+  --mt-primary-strong: #34c759;
+  --mt-danger: #ff3b30;
+  --mt-text-primary: #ffffff;
+  --mt-text-secondary: #bccbb8;
+  --mt-text-muted: #8e8e93;
+  --mt-radius-card: 32rpx;
+  --mt-radius-hero: 48rpx;
+  --mt-radius-pill: 9999rpx;
+  --mt-ease-emphasis: cubic-bezier(0.2, 0, 0, 1);
+}
+
+page {
+  background:
+    radial-gradient(circle at top, rgba(86, 228, 114, 0.08), transparent 28%),
+    linear-gradient(180deg, #101010 0%, #050505 100%);
+  color: var(--mt-text-primary);
+}
+
+.glass-panel {
+  background: rgba(42, 42, 42, 0.6);
+  backdrop-filter: blur(20px);
+}

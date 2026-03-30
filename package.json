@@ -1,0 +1,43 @@
+{
+  "name": "mytik-miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MyTik 微信小程序，基于 uni-app + Vue 3 + TypeScript + Vite。",
+  "scripts": {
+    "dev:h5": "uni",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:h5": "uni build",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "eslint . --ext .ts,.js,.vue",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-4030620241128001",
+    "@dcloudio/uni-components": "3.0.0-4030620241128001",
+    "@dcloudio/uni-h5": "3.0.0-4030620241128001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4030620241128001",
+    "@dcloudio/uni-ui": "^1.5.7",
+    "dayjs": "^1.11.13",
+    "nanoid": "^5.1.5",
+    "pinia": "2.1.7",
+    "vue": "3.4.21",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "@dcloudio/types": "^3.4.16",
+    "@dcloudio/vite-plugin-uni": "3.0.0-4030620241128001",
+    "@types/node": "^22.13.10",
+    "@vue/tsconfig": "^0.7.0",
+    "eslint": "^9.23.0",
+    "eslint-plugin-vue": "^9.33.0",
+    "globals": "^15.15.0",
+    "miniprogram-api-typings": "^4.0.0",
+    "prettier": "^3.5.3",
+    "sass": "^1.86.3",
+    "typescript": "^5.8.2",
+    "vite": "^5.4.14",
+    "vue-tsc": "^2.2.8"
+  }
+}
