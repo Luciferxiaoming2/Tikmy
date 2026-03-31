@@ -1,7 +1,9 @@
+import type { ThemeId } from '../theme/presets'
+
 export interface UserSettings {
   passcode: string
   useBiometrics: boolean
-  theme: 'dark'
+  theme: ThemeId
 }
 
 export interface Category {

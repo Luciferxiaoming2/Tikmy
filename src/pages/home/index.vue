@@ -1,20 +1,42 @@
 <template>
-  <view class="home-page">
-    <view class="hero-overlay">
-      <text class="hero-tag">Private Gallery</text>
-      <text class="hero-title">沉浸式播放</text>
-      <text class="hero-copy">后续这里会接入 swiper + video 的 3 实例播放池。</text>
+  <view :class="['home-page', 'mt-page', themeClass]" :style="homeInlineStyle">
+    <view class="hero-overlay glass-panel" :style="panelInlineStyle">
+      <text class="hero-tag" :style="accentStyle">Private Gallery</text>
+      <text class="hero-title" :style="textPrimaryStyle">沉浸式播放</text>
+      <text class="hero-copy" :style="textSecondaryStyle">后续这里会接入 swiper + video 的 3 实例播放池。</text>
     </view>
   </view>
 </template>
 
+<script setup lang="ts">
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '../../stores/user'
+import { getThemeOption } from '../../theme/presets'
+
+const userStore = useUserStore()
+const { theme } = storeToRefs(userStore)
+const activeTheme = computed(() => getThemeOption(theme.value))
+const themeClass = computed(() => `theme--${theme.value}`)
+const homeInlineStyle = computed(() => ({
+  background: activeTheme.value.homeBackground,
+  color: activeTheme.value.textPrimary,
+}))
+const panelInlineStyle = computed(() => ({
+  background: activeTheme.value.surface,
+  border: `1rpx solid ${activeTheme.value.borderSubtle}`,
+  boxShadow: activeTheme.value.shadowSoft,
+  backdropFilter: 'blur(20px)',
+}))
+const textPrimaryStyle = computed(() => ({ color: activeTheme.value.textPrimary }))
+const textSecondaryStyle = computed(() => ({ color: activeTheme.value.textSecondary }))
+const accentStyle = computed(() => ({ color: activeTheme.value.primary }))
+</script>
+
 <style scoped lang="scss">
 .home-page {
-  min-height: 100vh;
   position: relative;
-  background:
-    radial-gradient(circle at center, rgba(86, 228, 114, 0.14), transparent 30%),
-    linear-gradient(180deg, #090909 0%, #000000 100%);
+  background: var(--mt-home-background);
 }
 
 .hero-overlay {
@@ -24,13 +46,10 @@
   bottom: 80rpx;
   padding: 36rpx;
   border-radius: var(--mt-radius-card);
-  background: rgba(28, 27, 27, 0.64);
-  backdrop-filter: blur(20px);
 }
 
 .hero-tag {
   display: block;
-  color: var(--mt-primary);
   font-size: 24rpx;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -46,7 +65,6 @@
 .hero-copy {
   display: block;
   margin-top: 16rpx;
-  color: var(--mt-text-secondary);
   font-size: 28rpx;
   line-height: 1.7;
 }
