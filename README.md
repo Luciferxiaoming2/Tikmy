@@ -100,6 +100,12 @@ npm install
 npm run dev:mp-weixin
 ```
 
+停止微信小程序开发：
+
+```bash
+Ctrl + C
+```
+
 微信小程序构建：
 
 ```bash
@@ -110,6 +116,12 @@ H5 调试：
 
 ```bash
 npm run dev:h5
+```
+
+停止 H5 调试：
+
+```bash
+Ctrl + C
 ```
 
 H5 构建：
@@ -150,6 +162,11 @@ npm run lint
 ```text
 dist/build/mp-weixin
 ```
+
+如果需要完全结束当前查看流程：
+
+- 停止终端中的 `npm run dev:*` 命令：按 `Ctrl + C`
+- 关闭微信开发者工具中的当前项目窗口或停止编译
 
 ## 开发约定
 
