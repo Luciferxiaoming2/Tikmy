@@ -48,10 +48,63 @@
           <view class="video-scrim" />
 
           <view class="video-topbar">
-            <text class="video-topbar__tag" :style="accentStyle">Private Home</text>
-            <text class="video-topbar__meta" :style="textMutedStyle">
-              {{ playbackCategoryLabel }} 闂?{{ playbackModeLabel }} 闂?{{ activeIndexLabel(video.id) }}
-            </text>
+            <view class="video-topbar__nav">
+              <view class="video-topbar__menu" @tap.stop="handleMenuPlaceholder">
+                <text class="video-topbar__menu-icon">≡</text>
+              </view>
+
+              <scroll-view scroll-x class="video-topbar__tabs" show-scrollbar="false">
+                <view class="video-topbar__tabs-track">
+                  <view
+                    v-for="option in homeCategoryTabs"
+                    :key="option.id"
+                    class="video-topbar__tab"
+                    :class="{ 'video-topbar__tab--active': option.id === playbackCategoryId }"
+                    :style="option.id === playbackCategoryId ? textPrimaryStyle : textMutedStyle"
+                    @tap.stop="handleHomeCategoryTap(option.id)"
+                  >
+                    <text
+                      class="video-topbar__tab-text"
+                      :style="option.id === playbackCategoryId ? textPrimaryStyle : textMutedStyle"
+                    >
+                      {{ option.name }}
+                    </text>
+                  </view>
+
+                  <view
+                    class="video-topbar__tab video-topbar__tab--mode"
+                    :class="{ 'video-topbar__tab--active': playbackMode === 'sequential' }"
+                    :style="playbackMode === 'sequential' ? textPrimaryStyle : textMutedStyle"
+                    @tap.stop="handleHomeModeTap('sequential')"
+                  >
+                    <text
+                      class="video-topbar__tab-text video-topbar__tab-text--mode"
+                      :style="playbackMode === 'sequential' ? textPrimaryStyle : textMutedStyle"
+                    >
+                      顺序
+                    </text>
+                  </view>
+
+                  <view
+                    class="video-topbar__tab video-topbar__tab--mode"
+                    :class="{ 'video-topbar__tab--active': playbackMode === 'random' }"
+                    :style="playbackMode === 'random' ? textPrimaryStyle : textMutedStyle"
+                    @tap.stop="handleHomeModeTap('random')"
+                  >
+                    <text
+                      class="video-topbar__tab-text video-topbar__tab-text--mode"
+                      :style="playbackMode === 'random' ? textPrimaryStyle : textMutedStyle"
+                    >
+                      随机
+                    </text>
+                  </view>
+                </view>
+              </scroll-view>
+
+              <view class="video-topbar__search" @tap.stop="handleSearchPlaceholder">
+                <text class="video-topbar__search-icon">⌕</text>
+              </view>
+            </view>
           </view>
 
           <HomeActionRail
@@ -218,6 +271,12 @@ const primaryActionStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.primary}`,
 }))
 const activeVideo = computed(() => feedVideos.value.find((video) => video.id === activeVideoId.value) || null)
+const homeCategoryTabs = computed(() =>
+  categories.value.map((category) => ({
+    id: category.id,
+    name: category.name,
+  })),
+)
 const playbackTargets = computed(() =>
   feedVideos.value.map((video) => ({
     domId: videoDomId(video.id),
@@ -543,6 +602,28 @@ function toggleLike(videoId: string) {
   libraryStore.toggleLike(videoId)
 }
 
+function handleHomeCategoryTap(categoryId: string) {
+  userStore.setPlaybackCategory(categoryId)
+}
+
+function handleHomeModeTap(mode: 'sequential' | 'random') {
+  userStore.setPlaybackMode(mode)
+}
+
+function handleSearchPlaceholder() {
+  uni.showToast({
+    title: '搜索功能开发中',
+    icon: 'none',
+  })
+}
+
+function handleMenuPlaceholder() {
+  uni.showToast({
+    title: '菜单功能开发中',
+    icon: 'none',
+  })
+}
+
 function shouldShowFullscreenButton(video: VideoAsset) {
   if (typeof video.width === 'number' && typeof video.height === 'number') {
     return video.width / Math.max(video.height, 1) >= 1.2
@@ -684,18 +765,80 @@ function handleFullscreenChange(
 
 .video-topbar {
   position: absolute;
-  top: 88rpx;
-  left: 28rpx;
-  right: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
+  top: 78rpx;
+  left: 18rpx;
+  right: 18rpx;
 }
 
-.video-topbar__tag,
-.video-topbar__meta {
-  font-size: 24rpx;
+.video-topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.video-topbar__menu,
+.video-topbar__search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  flex: 0 0 64rpx;
+}
+
+.video-topbar__menu-icon,
+.video-topbar__search-icon {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 42rpx;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.video-topbar__tabs {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.video-topbar__tabs-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  gap: 34rpx;
+  padding: 0 8rpx 4rpx;
+}
+
+.video-topbar__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: fit-content;
+  padding: 6rpx 0 16rpx;
+}
+
+.video-topbar__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 30rpx;
+  height: 5rpx;
+  border-radius: 9999rpx;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.video-topbar__tab-text {
+  font-size: 38rpx;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.video-topbar__tab-text--mode {
+  font-size: 32rpx;
+  font-weight: 700;
 }
 
 .pause-indicator {
