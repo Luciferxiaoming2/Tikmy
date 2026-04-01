@@ -1,9 +1,11 @@
 <template>
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="page-header">
-      <text class="eyebrow" :style="accentStyle">Library</text>
+      <text class="eyebrow" :style="accentStyle">LIBRARY</text>
       <text class="title" :style="textPrimaryStyle">素材库</text>
-      <text class="description" :style="textSecondaryStyle">先完成分类管理、本地视频导入和基础元数据落盘。</text>
+      <text class="description" :style="textSecondaryStyle">
+        先完成分类管理、本地视频导入和基础元数据落盘。
+      </text>
     </view>
 
     <view class="hero glass-panel" :style="panelInlineStyle">
@@ -12,6 +14,7 @@
         <text class="hero-description" :style="textSecondaryStyle">
           先从“未分类”开始导入，后续再逐步整理到不同主题分类。
         </text>
+        <text class="hero-meta" :style="textMutedStyle">{{ storageSummaryText }}</text>
       </view>
       <view class="hero-actions">
         <view class="action action--primary" :style="primaryActionStyle" @tap="handleQuickImport">
@@ -23,24 +26,11 @@
       </view>
     </view>
 
-    <view v-if="showCreateCategory" class="create-card glass-panel" :style="panelInlineStyle">
-      <text class="section-title" :style="textPrimaryStyle">创建分类</text>
-      <input
-        v-model="newCategoryName"
-        class="category-input"
-        :style="inputInlineStyle"
-        maxlength="20"
-        placeholder="输入分类名称，例如：旅行、音乐、练习素材"
-        placeholder-style="color: #8e8e93;"
-      />
-      <view class="create-actions">
-        <view class="action" :style="secondaryActionStyle" @tap="cancelCreateCategory">
-          <text class="action-text" :style="textPrimaryStyle">取消</text>
-        </view>
-        <view class="action action--primary" :style="primaryActionStyle" @tap="submitCreateCategory">
-          <text class="action-text action-text--primary">保存分类</text>
-        </view>
-      </view>
+    <view v-if="storageUsage.warning" class="storage-alert glass-panel" :style="warningPanelStyle">
+      <text class="storage-alert__title">本地存储空间接近上限</text>
+      <text class="storage-alert__copy" :style="textSecondaryStyle">
+        当前已使用 {{ formatReadableBytes(storageUsage.usedBytes) }}，建议分批导入，避免触发小程序沙盒容量问题。
+      </text>
     </view>
 
     <view class="section-header">
@@ -51,6 +41,11 @@
     <view v-if="!categories.length" class="empty-state glass-panel" :style="panelInlineStyle">
       <text class="empty-title" :style="textPrimaryStyle">还没有可用分类</text>
       <text class="empty-copy" :style="textSecondaryStyle">先创建一个分类，再开始导入本地视频。</text>
+      <view class="empty-actions">
+        <view class="action action--primary" :style="primaryActionStyle" @tap="openCreateCategory">
+          <text class="action-text action-text--primary">立即创建分类</text>
+        </view>
+      </view>
     </view>
 
     <view v-else class="category-list">
@@ -65,11 +60,25 @@
         </view>
         <view class="category-content">
           <view class="category-head">
-            <text class="category-name" :style="textPrimaryStyle">{{ category.name }}</text>
-            <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} 个视频</text>
+            <view class="category-head__main">
+              <text class="category-name" :style="textPrimaryStyle">{{ category.name }}</text>
+              <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} 个视频</text>
+            </view>
+            <view
+              v-if="category.id !== DEFAULT_CATEGORY_ID"
+              class="category-more"
+              :style="secondaryActionStyle"
+              @tap="openCategoryActions(category)"
+            >
+              <text class="category-more__text" :style="textMutedStyle">管理</text>
+            </view>
           </view>
           <text class="category-note" :style="textSecondaryStyle">
-            {{ category.videoCount ? '分类卡片已具备基础元数据展示能力。' : '当前为空，可直接向该分类导入视频。' }}
+            {{
+              category.videoCount
+                ? '分类卡片已具备基础元数据展示能力。'
+                : '当前为空，可直接向该分类导入视频。'
+            }}
           </text>
           <view class="category-actions">
             <view class="action action--compact" :style="primaryActionStyle" @tap="handleImport(category.id)">
@@ -79,18 +88,76 @@
         </view>
       </view>
     </view>
+
+    <view v-if="showCategorySheet" class="sheet-mask" @tap="closeCategorySheet" />
+
+    <view
+      :class="['sheet-panel', showCategorySheet ? 'sheet-panel--open' : '']"
+      :style="sheetInlineStyle"
+    >
+      <view class="sheet-handle" />
+      <view class="sheet-header">
+        <text class="sheet-title" :style="textPrimaryStyle">{{ sheetTitle }}</text>
+        <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">取消</text>
+      </view>
+
+      <view v-if="sheetMode === 'form'" class="sheet-body">
+        <text class="sheet-label" :style="textSecondaryStyle">分类名称</text>
+        <input
+          v-model="categoryDraftName"
+          class="sheet-input"
+          :style="inputInlineStyle"
+          maxlength="20"
+          placeholder="输入分类名"
+          placeholder-style="color: #8e8e93;"
+          :focus="showCategorySheet"
+          confirm-type="done"
+          @confirm="submitCategoryForm"
+        />
+        <text class="sheet-hint" :style="textMutedStyle">例如：旅行、音乐、练习素材</text>
+      </view>
+
+      <view v-else class="sheet-menu">
+        <view class="sheet-menu__item" @tap="startRenameCategory">
+          <text class="sheet-menu__text" :style="textPrimaryStyle">重命名分类</text>
+        </view>
+        <view class="sheet-menu__item sheet-menu__item--danger" @tap="confirmDeleteCategory">
+          <text class="sheet-menu__text sheet-menu__text--danger">删除分类</text>
+          <text class="sheet-menu__hint" :style="textMutedStyle">分类内视频将转移到未分类</text>
+        </view>
+      </view>
+
+      <view v-if="sheetMode === 'form'" class="sheet-footer">
+        <view class="action action--sheet" :style="primaryActionStyle" @tap="submitCategoryForm">
+          <text class="action-text action-text--primary">{{ sheetSubmitLabel }}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
+import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
 import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
+import {
+  estimateMediaFilesSize,
+  formatBytes,
+  getSavedFileUsageSummary,
+  persistMediaFile,
+} from '@/services/platform/file-system'
+import { chooseVideos, normalizeChosenVideos } from '@/services/platform/media'
 import { getThemeOption } from '@/theme/presets'
+import type { SavedFileUsageSummary } from '@/services/platform/file-system'
 import type { Category } from '@/types/domain'
 
-const DEFAULT_IMPORT_CATEGORY_ID = 'default'
+type CategorySheetMode = 'form' | 'actions'
+type CategoryFormMode = 'create' | 'rename'
+
+const DEFAULT_IMPORT_CATEGORY_ID = DEFAULT_CATEGORY_ID
 
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
@@ -98,8 +165,18 @@ const libraryStore = useLibraryStore()
 const { theme } = storeToRefs(userStore)
 const { categories, totalVideoCount } = storeToRefs(libraryStore)
 
-const showCreateCategory = ref(false)
-const newCategoryName = ref('')
+const showCategorySheet = ref(false)
+const sheetMode = ref<CategorySheetMode>('form')
+const formMode = ref<CategoryFormMode>('create')
+const categoryDraftName = ref('')
+const activeCategory = ref<Category | null>(null)
+const storageUsage = ref<SavedFileUsageSummary>({
+  available: false,
+  fileCount: 0,
+  usedBytes: 0,
+  limitBytes: 0,
+  warning: false,
+})
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -112,6 +189,11 @@ const panelInlineStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
   boxShadow: activeTheme.value.shadowSoft,
   backdropFilter: 'blur(20px)',
+}))
+const sheetInlineStyle = computed(() => ({
+  background: activeTheme.value.surfaceHighest,
+  boxShadow: activeTheme.value.shadowSoft,
+  borderTop: `1rpx solid ${activeTheme.value.borderSubtle}`,
 }))
 const textPrimaryStyle = computed(() => ({ color: activeTheme.value.textPrimary }))
 const textSecondaryStyle = computed(() => ({ color: activeTheme.value.textSecondary }))
@@ -130,50 +212,160 @@ const inputInlineStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
   background: activeTheme.value.themeOptionBackground,
 }))
+const warningPanelStyle = computed(() => ({
+  background: 'rgba(255, 91, 87, 0.12)',
+  border: '1rpx solid rgba(255, 91, 87, 0.24)',
+  boxShadow: activeTheme.value.shadowSoft,
+}))
+const storageSummaryText = computed(() => {
+  if (!storageUsage.value.available) {
+    return '当前环境未返回已保存文件列表，导入后请在微信开发者工具里再验一次容量。'
+  }
+
+  return `已保存 ${storageUsage.value.fileCount} 个文件，已用 ${formatReadableBytes(storageUsage.value.usedBytes)} / ${formatReadableBytes(storageUsage.value.limitBytes)}`
+})
+const sheetTitle = computed(() => {
+  if (sheetMode.value === 'actions') {
+    return activeCategory.value?.name || '分类管理'
+  }
+
+  return formMode.value === 'create' ? '新建分类' : '重命名分类'
+})
+const sheetSubmitLabel = computed(() => (formMode.value === 'create' ? '保存分类' : '确认修改'))
+
+onShow(() => {
+  void refreshStorageUsage()
+})
 
 function openCreateCategory() {
-  showCreateCategory.value = true
+  formMode.value = 'create'
+  sheetMode.value = 'form'
+  activeCategory.value = null
+  categoryDraftName.value = ''
+  showCategorySheet.value = true
 }
 
-function cancelCreateCategory() {
-  showCreateCategory.value = false
-  newCategoryName.value = ''
+function openCategoryActions(category: Category) {
+  activeCategory.value = category
+  sheetMode.value = 'actions'
+  showCategorySheet.value = true
 }
 
-function submitCreateCategory() {
+function startRenameCategory() {
+  if (!activeCategory.value) {
+    return
+  }
+
+  formMode.value = 'rename'
+  sheetMode.value = 'form'
+  categoryDraftName.value = activeCategory.value.name
+}
+
+function closeCategorySheet() {
+  showCategorySheet.value = false
+  sheetMode.value = 'form'
+  formMode.value = 'create'
+  categoryDraftName.value = ''
+  activeCategory.value = null
+}
+
+function submitCategoryForm() {
   try {
-    libraryStore.createCategory(newCategoryName.value)
-    uni.showToast({
-      title: '分类已创建',
-      icon: 'success',
-    })
-    cancelCreateCategory()
+    if (formMode.value === 'create') {
+      libraryStore.createCategory(categoryDraftName.value)
+      uni.showToast({
+        title: '分类已创建',
+        icon: 'success',
+      })
+    } else {
+      if (!activeCategory.value) {
+        return
+      }
+
+      libraryStore.renameCategory(activeCategory.value.id, categoryDraftName.value)
+      uni.showToast({
+        title: '分类已更新',
+        icon: 'success',
+      })
+    }
+
+    closeCategorySheet()
   } catch (error) {
     uni.showToast({
-      title: error instanceof Error ? error.message : '创建失败',
+      title: error instanceof Error ? error.message : '操作失败',
       icon: 'none',
     })
   }
 }
 
+function confirmDeleteCategory() {
+  if (!activeCategory.value) {
+    return
+  }
+
+  const category = activeCategory.value
+
+  uni.showModal({
+    title: '删除分类',
+    content: `删除“${category.name}”后，分类内视频会转移到未分类。`,
+    confirmColor: '#ff5e57',
+    success: ({ confirm }) => {
+      if (!confirm) {
+        return
+      }
+
+      try {
+        libraryStore.deleteCategory(category.id)
+        uni.showToast({
+          title: '分类已删除',
+          icon: 'success',
+        })
+        closeCategorySheet()
+      } catch (error) {
+        uni.showToast({
+          title: error instanceof Error ? error.message : '删除失败',
+          icon: 'none',
+        })
+      }
+    },
+  })
+}
+
 async function importToCategory(categoryId: string) {
   try {
-    const result = await new Promise<WechatMiniprogram.ChooseMediaSuccessCallbackResult>((resolve, reject) => {
-      uni.chooseMedia({
-        count: 9,
-        mediaType: ['video'],
-        sourceType: ['album'],
-        success: resolve,
-        fail: reject,
-      })
-    })
-    const mediaFiles = result.tempFiles || []
+    const result = await chooseVideos()
+    const mediaFiles = normalizeChosenVideos(result)
 
     if (!mediaFiles.length) {
       return
     }
 
-    const imported = libraryStore.addVideosToCategory(categoryId, mediaFiles)
+    const estimatedImportSize = estimateMediaFilesSize(mediaFiles)
+
+    if (
+      storageUsage.value.available &&
+      storageUsage.value.usedBytes + estimatedImportSize > storageUsage.value.limitBytes
+    ) {
+      uni.showToast({
+        title: '空间不足，请先减少导入数量',
+        icon: 'none',
+      })
+      return
+    }
+
+    const persistedMediaFiles = await Promise.all(
+      mediaFiles.map(async (file) => {
+        const persisted = await persistMediaFile(file.tempFilePath)
+
+        return {
+          ...file,
+          persistedPath: persisted.path,
+        }
+      }),
+    )
+
+    const imported = libraryStore.addVideosToCategory(categoryId, persistedMediaFiles)
+    await refreshStorageUsage()
 
     uni.showToast({
       title: `已导入 ${imported.length} 个视频`,
@@ -217,10 +409,19 @@ function buildCategoryCoverStyle(category: Category) {
     border: `1rpx solid ${activeTheme.value.borderSubtle}`,
   }
 }
+
+async function refreshStorageUsage() {
+  storageUsage.value = await getSavedFileUsageSummary()
+}
+
+function formatReadableBytes(bytes: number) {
+  return formatBytes(bytes)
+}
 </script>
 
 <style scoped lang="scss">
 .page-shell {
+  min-height: 100vh;
   padding: 96rpx 40rpx 48rpx;
 }
 
@@ -247,9 +448,9 @@ function buildCategoryCoverStyle(category: Category) {
 }
 
 .hero,
-.create-card,
 .empty-state,
-.category-card {
+.category-card,
+.storage-alert {
   border-radius: var(--mt-radius-card);
 }
 
@@ -274,9 +475,16 @@ function buildCategoryCoverStyle(category: Category) {
   line-height: 1.7;
 }
 
+.hero-meta {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
 .hero-actions,
-.create-actions,
-.category-actions {
+.category-actions,
+.empty-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 16rpx;
@@ -296,6 +504,11 @@ function buildCategoryCoverStyle(category: Category) {
   padding: 18rpx 24rpx;
 }
 
+.action--sheet {
+  width: 100%;
+  min-height: 92rpx;
+}
+
 .action-text {
   font-size: 24rpx;
   line-height: 1;
@@ -306,9 +519,23 @@ function buildCategoryCoverStyle(category: Category) {
   font-weight: 700;
 }
 
-.create-card {
-  margin-top: 28rpx;
-  padding: 32rpx;
+.storage-alert {
+  margin-top: 24rpx;
+  padding: 28rpx 30rpx;
+}
+
+.storage-alert__title {
+  display: block;
+  color: #ffd5d2;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.storage-alert__copy {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
 }
 
 .section-header {
@@ -328,16 +555,6 @@ function buildCategoryCoverStyle(category: Category) {
   font-size: 24rpx;
 }
 
-.category-input {
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: 20rpx;
-  margin-bottom: 20rpx;
-  padding: 24rpx 28rpx;
-  border-radius: 24rpx;
-  font-size: 28rpx;
-}
-
 .empty-state {
   padding: 40rpx 32rpx;
 }
@@ -353,6 +570,10 @@ function buildCategoryCoverStyle(category: Category) {
   margin-top: 14rpx;
   font-size: 26rpx;
   line-height: 1.7;
+}
+
+.empty-actions {
+  margin-top: 22rpx;
 }
 
 .category-list {
@@ -396,13 +617,35 @@ function buildCategoryCoverStyle(category: Category) {
   align-items: flex-start;
 }
 
+.category-head__main {
+  min-width: 0;
+  flex: 1;
+}
+
 .category-name {
+  display: block;
   font-size: 32rpx;
   font-weight: 700;
 }
 
 .category-count {
+  display: block;
+  margin-top: 8rpx;
   font-size: 24rpx;
+}
+
+.category-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100rpx;
+  min-height: 60rpx;
+  padding: 0 20rpx;
+  border-radius: 9999rpx;
+}
+
+.category-more__text {
+  font-size: 22rpx;
 }
 
 .category-note {
@@ -414,5 +657,118 @@ function buildCategoryCoverStyle(category: Category) {
 
 .category-actions {
   margin-top: 18rpx;
+}
+
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(8, 8, 8, 0.28);
+}
+
+.sheet-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  padding: 20rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  border-top-left-radius: 36rpx;
+  border-top-right-radius: 36rpx;
+  transform: translateY(100%);
+  transition: transform 220ms ease;
+}
+
+.sheet-panel--open {
+  transform: translateY(0);
+}
+
+.sheet-handle {
+  width: 84rpx;
+  height: 8rpx;
+  margin: 0 auto 24rpx;
+  border-radius: 9999rpx;
+  background: rgba(142, 142, 147, 0.35);
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.sheet-title {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.sheet-close {
+  font-size: 26rpx;
+}
+
+.sheet-body {
+  margin-top: 28rpx;
+}
+
+.sheet-label {
+  display: block;
+  font-size: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.sheet-input {
+  width: 100%;
+  min-height: 96rpx;
+  box-sizing: border-box;
+  padding: 0 28rpx;
+  border-radius: 28rpx;
+  font-size: 30rpx;
+  line-height: 96rpx;
+}
+
+.sheet-hint {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.sheet-footer {
+  margin-top: 28rpx;
+}
+
+.sheet-menu {
+  margin-top: 24rpx;
+  overflow: hidden;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sheet-menu__item {
+  padding: 28rpx;
+}
+
+.sheet-menu__item + .sheet-menu__item {
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
+}
+
+.sheet-menu__item--danger {
+  background: rgba(255, 94, 87, 0.06);
+}
+
+.sheet-menu__text {
+  display: block;
+  font-size: 30rpx;
+}
+
+.sheet-menu__text--danger {
+  color: #ff5e57;
+}
+
+.sheet-menu__hint {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
 }
 </style>

@@ -1,27 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { STORAGE_KEYS } from '../constants/storage'
-import { getStorageItem, setStorageItem } from '../services/storage/kv'
-import type { Category, VideoAsset } from '../types/domain'
-
-const DEFAULT_CATEGORY_NAME = '未分类'
-
-function createId(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-}
-
-function createDefaultCategory(): Category {
-  const now = Date.now()
-
-  return {
-    id: 'default',
-    name: DEFAULT_CATEGORY_NAME,
-    coverPath: '',
-    videoCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  }
-}
+import { STORAGE_KEYS } from '@/constants/storage'
+import {
+  assertUniqueCategoryName,
+  createCategoryEntity,
+  createVideoAssets,
+  DEFAULT_CATEGORY_ID,
+  ensureBaseCategories,
+  moveVideosToCategory,
+  renameCategoryEntity,
+  syncCategoryStats as buildCategoryStats,
+} from '@/repositories/library'
+import { getStorageItem, setStorageItem } from '@/services/storage/kv'
+import type { Category, VideoAsset } from '@/types/domain'
 
 export const useLibraryStore = defineStore('library', () => {
   const categories = ref<Category[]>(getStorageItem<Category[]>(STORAGE_KEYS.categories, []))
@@ -36,62 +27,78 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   function syncCategoryStats() {
-    categories.value = categories.value.map((category) => {
-      const categoryVideos = videos.value.filter((video) => video.categoryId === category.id)
-      const latestVideo = categoryVideos.at(-1)
-
-      return {
-        ...category,
-        videoCount: categoryVideos.length,
-        coverPath: latestVideo?.posterPath || latestVideo?.localPath || category.coverPath,
-        updatedAt: latestVideo?.updatedAt || category.updatedAt,
-      }
-    })
-
+    categories.value = buildCategoryStats(categories.value, videos.value)
     persistCategories()
   }
 
   function ensureDefaultCategory() {
-    if (!categories.value.length) {
-      categories.value = [createDefaultCategory()]
-      persistCategories()
-      return
-    }
+    const nextCategories = ensureBaseCategories(categories.value)
+    const changed =
+      nextCategories.length !== categories.value.length ||
+      nextCategories.some(
+        (category, index) =>
+          category.id !== categories.value[index]?.id || category.name !== categories.value[index]?.name,
+      )
 
-    const hasDefault = categories.value.some((category) => category.id === 'default')
-
-    if (!hasDefault) {
-      categories.value.unshift(createDefaultCategory())
+    if (changed) {
+      categories.value = nextCategories
       persistCategories()
     }
   }
 
   function createCategory(name: string) {
-    const normalizedName = name.trim()
-
-    if (!normalizedName) {
-      throw new Error('分类名称不能为空')
-    }
-
-    const now = Date.now()
-    const category: Category = {
-      id: createId('category'),
-      name: normalizedName,
-      coverPath: '',
-      videoCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    }
-
+    assertUniqueCategoryName(categories.value, name)
+    const category = createCategoryEntity(name)
     categories.value = [category, ...categories.value]
     persistCategories()
-
     return category
+  }
+
+  function renameCategory(categoryId: string, name: string) {
+    if (categoryId === DEFAULT_CATEGORY_ID) {
+      throw new Error('未分类暂不支持重命名')
+    }
+
+    const target = categories.value.find((item) => item.id === categoryId)
+
+    if (!target) {
+      throw new Error('分类不存在')
+    }
+
+    assertUniqueCategoryName(categories.value, name, categoryId)
+    categories.value = categories.value.map((category) =>
+      category.id === categoryId ? renameCategoryEntity(category, name) : category,
+    )
+    persistCategories()
+    syncCategoryStats()
+  }
+
+  function deleteCategory(categoryId: string) {
+    if (categoryId === DEFAULT_CATEGORY_ID) {
+      throw new Error('未分类不可删除')
+    }
+
+    const target = categories.value.find((item) => item.id === categoryId)
+
+    if (!target) {
+      throw new Error('分类不存在')
+    }
+
+    videos.value = moveVideosToCategory(videos.value, categoryId, DEFAULT_CATEGORY_ID)
+    categories.value = categories.value.filter((category) => category.id !== categoryId)
+    persistVideos()
+    persistCategories()
+    syncCategoryStats()
   }
 
   function addVideosToCategory(
     categoryId: string,
-    mediaFiles: Array<WechatMiniprogram.MediaFile & { thumbTempFilePath?: string }>,
+    mediaFiles: Array<
+      WechatMiniprogram.MediaFile & {
+        thumbTempFilePath?: string
+        persistedPath?: string
+      }
+    >,
   ) {
     const category = categories.value.find((item) => item.id === categoryId)
 
@@ -99,21 +106,7 @@ export const useLibraryStore = defineStore('library', () => {
       throw new Error('分类不存在')
     }
 
-    const now = Date.now()
-    const newVideos: VideoAsset[] = mediaFiles.map((file, index) => ({
-      id: createId(`video_${index}`),
-      categoryId,
-      localPath: file.tempFilePath,
-      posterPath: file.thumbTempFilePath || '',
-      videoHash: file.tempFilePath,
-      duration: file.duration || 0,
-      isLiked: false,
-      playCount: 0,
-      totalWatchTime: 0,
-      createdAt: now + index,
-      updatedAt: now + index,
-    }))
-
+    const newVideos = createVideoAssets(categoryId, mediaFiles)
     videos.value = [...videos.value, ...newVideos]
     persistVideos()
     syncCategoryStats()
@@ -131,6 +124,8 @@ export const useLibraryStore = defineStore('library', () => {
     videos,
     totalVideoCount,
     createCategory,
+    renameCategory,
+    deleteCategory,
     addVideosToCategory,
     syncCategoryStats,
   }

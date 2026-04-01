@@ -9,3 +9,11 @@ export async function chooseVideos() {
     })
   })
 }
+
+export function normalizeChosenVideos(result: WechatMiniprogram.ChooseMediaSuccessCallbackResult) {
+  return (result.tempFiles || []) as Array<
+    WechatMiniprogram.MediaFile & {
+      thumbTempFilePath?: string
+    }
+  >
+}
