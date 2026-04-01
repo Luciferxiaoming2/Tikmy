@@ -148,8 +148,8 @@
 
 建议增加统一的数据访问层：
 
-- `src/services/storage/`
-- `src/repositories/`
+- `services/storage/`
+- `repositories/`
 
 目标：
 
@@ -252,24 +252,23 @@
 建议采用如下结构：
 
 ```text
-src/
-  pages/
-    library/
-    home/
-    settings/
-    lock/
-  components/
-    business/
-    common/
-  stores/
-  services/
-    platform/
-    storage/
-  repositories/
-  utils/
-  types/
-  theme/
-  constants/
+pages/
+  library/
+  home/
+  settings/
+  lock/
+components/
+  business/
+  common/
+stores/
+services/
+  platform/
+  storage/
+repositories/
+utils/
+types/
+theme/
+constants/
 ```
 
 说明：

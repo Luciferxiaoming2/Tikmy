@@ -79,9 +79,9 @@
 import { computed } from 'vue'
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useUserStore } from '../../stores/user'
-import { THEME_OPTIONS, getThemeOption } from '../../theme/presets'
-import type { ThemeId } from '../../theme/presets'
+import { useUserStore } from '@/stores/user'
+import { THEME_OPTIONS, getThemeOption } from '@/theme/presets'
+import type { ThemeId } from '@/theme/presets'
 
 const themeOptions = THEME_OPTIONS
 const userStore = useUserStore()

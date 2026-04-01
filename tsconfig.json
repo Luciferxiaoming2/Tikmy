@@ -16,7 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./*"
       ]
     },
     "lib": [
@@ -25,10 +25,19 @@
     ]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
+    "components/**/*.ts",
+    "composables/**/*.ts",
+    "constants/**/*.ts",
+    "pages/**/*.vue",
+    "repositories/**/*.ts",
+    "services/**/*.ts",
+    "stores/**/*.ts",
+    "theme/**/*.ts",
+    "types/**/*.ts",
+    "utils/**/*.ts",
+    "*.ts",
+    "*.d.ts",
+    "*.vue",
     "vite.config.ts"
   ]
 }
