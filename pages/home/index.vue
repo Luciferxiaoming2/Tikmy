@@ -1,14 +1,14 @@
 <template>
   <view :class="['home-page', 'mt-page', themeClass]" :style="homeInlineStyle">
-    <view v-if="!videos.length" class="empty-shell">
+    <view v-if="!feedVideos.length" class="empty-shell">
       <view class="empty-card glass-panel" :style="panelInlineStyle">
         <text class="empty-tag" :style="accentStyle">HOME</text>
         <text class="empty-title" :style="textPrimaryStyle">还没有可播放的视频</text>
         <text class="empty-copy" :style="textSecondaryStyle">
-          先去素材库导入视频，Home 首版会在这里提供沉浸式上下滑动播放。
+          先去素材库导入本地视频，随后回到 Home 页就能开始上下刷视频。
         </text>
         <view class="empty-action" :style="primaryActionStyle" @tap="goToLibrary">
-          <text class="empty-action__text">去素材库导入</text>
+          <text class="empty-action__text">前往素材库</text>
         </view>
       </view>
     </view>
@@ -20,8 +20,13 @@
       :current="playerStore.currentIndex"
       @change="handleSwiperChange"
     >
-      <swiper-item v-for="video in videos" :key="video.id" class="video-slide">
-        <view class="video-stage">
+      <swiper-item v-for="video in feedVideos" :key="video.id" class="video-slide">
+        <view
+          class="video-stage"
+          @tap="handleStageTap(video.id)"
+          @longpress="handleStageLongPress(video.id)"
+          @touchend="handleStageTouchEnd(video.id)"
+        >
           <video
             :id="videoDomId(video.id)"
             class="video-player"
@@ -43,12 +48,12 @@
           <view class="video-topbar">
             <text class="video-topbar__tag" :style="accentStyle">Private Home</text>
             <text class="video-topbar__meta" :style="textMutedStyle">
-              {{ activeIndexLabel(video.id) }}
+              {{ playbackModeLabel }} · {{ activeIndexLabel(video.id) }}
             </text>
           </view>
 
           <view class="video-side-actions">
-            <view class="side-button glass-panel" :style="sideButtonStyle" @tap="toggleLike(video.id)">
+            <view class="side-button glass-panel" :style="sideButtonStyle" @tap.stop="toggleLike(video.id)">
               <text class="side-button__icon">{{ video.isLiked ? '♥' : '♡' }}</text>
               <text class="side-button__text" :style="textPrimaryStyle">{{ video.isLiked ? '已喜欢' : '喜欢' }}</text>
             </view>
@@ -57,7 +62,7 @@
               <text class="side-button__text" :style="textPrimaryStyle">{{ video.playCount }}</text>
             </view>
             <view class="side-button glass-panel" :style="sideButtonStyle">
-              <text class="side-button__icon">✎</text>
+              <text class="side-button__icon">评</text>
               <text class="side-button__text" :style="textPrimaryStyle">{{ commentsForVideo(video.id).length }}</text>
             </view>
           </view>
@@ -66,10 +71,10 @@
             <view class="video-summary glass-panel" :style="summaryStyle">
               <text class="video-category" :style="textPrimaryStyle">{{ categoryNameFor(video.categoryId) }}</text>
               <text class="video-stats" :style="textSecondaryStyle">
-                时长 {{ formatDuration(video.duration) }} · 观看 {{ formatWatchTime(video.totalWatchTime) }}
+                时长 {{ formatDuration(video.duration) }} · 已观看 {{ formatWatchTime(video.totalWatchTime) }}
               </text>
               <text class="video-hint" :style="textMutedStyle">
-                支持上下滑切换、点赞、本地评论保存与历史回显。
+                {{ gestureHint }}
               </text>
             </view>
 
@@ -85,7 +90,7 @@
                   <text class="comment-item__content" :style="textPrimaryStyle">{{ comment.content }}</text>
                 </view>
               </view>
-              <text v-else class="comment-empty" :style="textMutedStyle">还没有给这个视频留下评论。</text>
+              <text v-else class="comment-empty" :style="textMutedStyle">还没有评论，发一条给未来再次刷到的自己。</text>
 
               <view v-if="video.id === activeVideoId" class="comment-editor">
                 <input
@@ -93,7 +98,7 @@
                   class="comment-input"
                   :style="inputInlineStyle"
                   maxlength="40"
-                  placeholder="写一句下次刷到时还会看到的话"
+                  placeholder="写一句想在下次刷到时看到的话"
                   placeholder-style="color: #8e8e93;"
                   confirm-type="send"
                   @confirm="submitComment"
@@ -118,22 +123,44 @@ import { useLibraryStore } from '@/stores/library'
 import { usePlayerStore } from '@/stores/player'
 import { useUserStore } from '@/stores/user'
 import { getThemeOption } from '@/theme/presets'
+import type { PlaybackMode, VideoAsset } from '@/types/domain'
 
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 const playerStore = usePlayerStore()
 const commentStore = useCommentStore()
 
-const { theme } = storeToRefs(userStore)
+const { gestures, likeWeight, playbackMode, theme } = storeToRefs(userStore)
 const { categories, videos } = storeToRefs(libraryStore)
 const { activeVideoId } = storeToRefs(playerStore)
 
 const commentDraft = ref('')
 const watchProgress = ref<Record<string, number>>({})
 const playedVideoIds = ref<string[]>([])
+const feedVideos = ref<VideoAsset[]>([])
+const lastTapState = ref<{ videoId: string; time: number } | null>(null)
+const speedBoostVideoId = ref('')
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
+const playbackModeLabel = computed(() => (playbackMode.value === 'random' ? '随机播放' : '顺序播放'))
+const gestureHint = computed(() => {
+  const hints: string[] = []
+
+  if (gestures.value.doubleTapLike) {
+    hints.push('双击可点赞')
+  }
+
+  if (gestures.value.longPressSpeed) {
+    hints.push('长按 2 倍速')
+  }
+
+  if (!hints.length) {
+    return '当前未启用快捷手势，可在设置页随时调整。'
+  }
+
+  return `当前支持${hints.join('，')}。`
+})
 const homeInlineStyle = computed(() => ({
   background: activeTheme.value.homeBackground,
   color: activeTheme.value.textPrimary,
@@ -171,17 +198,30 @@ const primaryActionStyle = computed(() => ({
 }))
 
 watch(
-  videos,
+  [videos, playbackMode, likeWeight],
+  () => {
+    rebuildFeed()
+  },
+  {
+    immediate: true,
+    deep: true,
+  },
+)
+
+watch(
+  feedVideos,
   (nextVideos) => {
     if (!nextVideos.length) {
       return
     }
 
-    const currentVideo = nextVideos[playerStore.currentIndex] || nextVideos[0]
+    const currentVideo =
+      nextVideos.find((video) => video.id === playerStore.activeVideoId) ||
+      nextVideos[playerStore.currentIndex] ||
+      nextVideos[0]
 
-    if (!playerStore.activeVideoId || !nextVideos.some((video) => video.id === playerStore.activeVideoId)) {
-      activateVideo(currentVideo.id, nextVideos.findIndex((video) => video.id === currentVideo.id))
-    }
+    const nextIndex = nextVideos.findIndex((video) => video.id === currentVideo.id)
+    activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
   },
   {
     immediate: true,
@@ -200,6 +240,15 @@ watch(
   },
 )
 
+function rebuildFeed() {
+  const nextVideos =
+    playbackMode.value === 'random'
+      ? buildRandomFeed(videos.value, likeWeight.value)
+      : buildSequentialFeed(videos.value)
+
+  feedVideos.value = nextVideos
+}
+
 function activateVideo(videoId: string, index: number) {
   playerStore.setActiveVideo(videoId, index)
   watchProgress.value = {
@@ -215,7 +264,7 @@ function activateVideo(videoId: string, index: number) {
 
 function handleSwiperChange(event: { detail?: { current?: number } }) {
   const nextIndex = Number(event.detail?.current || 0)
-  const video = videos.value[nextIndex]
+  const video = feedVideos.value[nextIndex]
 
   if (!video) {
     return
@@ -226,7 +275,7 @@ function handleSwiperChange(event: { detail?: { current?: number } }) {
 }
 
 function handleVideoPlay(videoId: string) {
-  const index = videos.value.findIndex((video) => video.id === videoId)
+  const index = feedVideos.value.findIndex((video) => video.id === videoId)
 
   if (index >= 0) {
     activateVideo(videoId, index)
@@ -258,6 +307,54 @@ function handleTimeUpdate(
     [videoId]: currentTime,
   }
   playerStore.setCurrentTime(currentTime)
+}
+
+function handleStageTap(videoId: string) {
+  if (!gestures.value.doubleTapLike) {
+    return
+  }
+
+  const now = Date.now()
+  const lastTap = lastTapState.value
+
+  if (lastTap && lastTap.videoId === videoId && now - lastTap.time < 260) {
+    toggleLike(videoId)
+    lastTapState.value = null
+    return
+  }
+
+  lastTapState.value = {
+    videoId,
+    time: now,
+  }
+}
+
+function handleStageLongPress(videoId: string) {
+  if (!gestures.value.longPressSpeed || videoId !== activeVideoId.value) {
+    return
+  }
+
+  speedBoostVideoId.value = videoId
+
+  try {
+    uni.createVideoContext(videoDomId(videoId)).playbackRate(2)
+  } catch (error) {
+    console.warn('Failed to enable speed boost', error)
+  }
+}
+
+function handleStageTouchEnd(videoId: string) {
+  if (!gestures.value.longPressSpeed || speedBoostVideoId.value !== videoId) {
+    return
+  }
+
+  speedBoostVideoId.value = ''
+
+  try {
+    uni.createVideoContext(videoDomId(videoId)).playbackRate(1)
+  } catch (error) {
+    console.warn('Failed to reset speed boost', error)
+  }
 }
 
 function toggleLike(videoId: string) {
@@ -295,8 +392,8 @@ function categoryNameFor(categoryId: string) {
 }
 
 function activeIndexLabel(videoId: string) {
-  const index = videos.value.findIndex((video) => video.id === videoId)
-  const total = videos.value.length
+  const index = feedVideos.value.findIndex((video) => video.id === videoId)
+  const total = feedVideos.value.length
 
   if (index < 0) {
     return ''
@@ -336,21 +433,41 @@ function goToLibrary() {
 }
 
 function syncVideoPlayback(activeId: string) {
-  videos.value.forEach((video) => {
+  feedVideos.value.forEach((video) => {
     const context = uni.createVideoContext(videoDomId(video.id))
 
     if (video.id === activeId) {
       context.seek(0)
+      context.playbackRate(1)
       context.play()
       return
     }
 
     context.pause()
+    context.playbackRate(1)
   })
+
+  speedBoostVideoId.value = ''
 }
 
 function videoDomId(videoId: string) {
   return `home-video-${videoId}`
+}
+
+function buildSequentialFeed(source: VideoAsset[]) {
+  return [...source].sort((left, right) => right.createdAt - left.createdAt)
+}
+
+function buildRandomFeed(source: VideoAsset[], weight: number) {
+  return [...source].sort((left, right) => scoreVideo(right, weight) - scoreVideo(left, weight))
+}
+
+function scoreVideo(video: VideoAsset, weight: number) {
+  const likedBoost = video.isLiked ? weight / 18 : 0
+  const freshnessBoost = Math.max(0, 8 - video.playCount * 0.7)
+  const watchBoost = Math.min(video.totalWatchTime / 12, 4)
+
+  return Math.random() * 10 + likedBoost + freshnessBoost + watchBoost
 }
 </script>
 

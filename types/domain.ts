@@ -1,9 +1,19 @@
 import type { ThemeId } from '../theme/presets'
 
+export type PlaybackMode = 'sequential' | 'random'
+
+export interface GestureSettings {
+  doubleTapLike: boolean
+  longPressSpeed: boolean
+}
+
 export interface UserSettings {
   passcode: string
   useBiometrics: boolean
   theme: ThemeId
+  playbackMode: PlaybackMode
+  likeWeight: number
+  gestures: GestureSettings
 }
 
 export interface Category {
