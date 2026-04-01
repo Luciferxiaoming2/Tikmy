@@ -38,10 +38,16 @@
 
       <view class="action-list">
         <view class="action-row" :style="primaryActionStyle" @tap="$emit('copy')">
-          <text class="action-row__text action-row__text--primary">复制到其它分类</text>
+          <text class="action-row__text action-row__text--primary">复制到其他分类</text>
         </view>
         <view class="action-row" :style="secondaryActionStyle" @tap="$emit('move')">
-          <text class="action-row__text" :style="textPrimaryStyle">移动到其它分类</text>
+          <text class="action-row__text" :style="textPrimaryStyle">移动到其他分类</text>
+        </view>
+        <view class="action-row" :style="secondaryActionStyle" @tap="$emit('download')">
+          <text class="action-row__text" :style="textPrimaryStyle">下载到本地</text>
+        </view>
+        <view class="action-row action-row--danger" @tap="$emit('delete')">
+          <text class="action-row__text action-row__text--danger">删除视频</text>
         </view>
       </view>
     </view>
@@ -67,6 +73,8 @@ defineEmits<{
   (event: 'close'): void
   (event: 'copy'): void
   (event: 'move'): void
+  (event: 'download'): void
+  (event: 'delete'): void
 }>()
 
 function buildPosterStyle(posterPath: string) {
@@ -230,6 +238,16 @@ function formatWatchTime(seconds: number) {
 
 .action-row__text--primary {
   color: #08110c;
+  font-weight: 700;
+}
+
+.action-row--danger {
+  background: rgba(255, 94, 87, 0.12);
+  border: 1rpx solid rgba(255, 94, 87, 0.24);
+}
+
+.action-row__text--danger {
+  color: #ff5e57;
   font-weight: 700;
 }
 </style>

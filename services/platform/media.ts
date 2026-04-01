@@ -17,3 +17,13 @@ export function normalizeChosenVideos(result: WechatMiniprogram.ChooseMediaSucce
     }
   >
 }
+
+export async function saveVideoToAlbum(filePath: string) {
+  return new Promise<void>((resolve, reject) => {
+    uni.saveVideoToPhotosAlbum({
+      filePath,
+      success: () => resolve(),
+      fail: reject,
+    })
+  })
+}

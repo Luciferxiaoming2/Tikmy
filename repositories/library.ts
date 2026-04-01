@@ -169,7 +169,7 @@ export function syncCategoryStats(categories: Category[], videos: VideoAsset[]) 
     return {
       ...category,
       videoCount: categoryVideos.length,
-      coverPath: latestVideo?.posterPath || category.coverPath,
+      coverPath: latestVideo?.posterPath || '',
       updatedAt: latestVideo?.updatedAt || category.updatedAt,
     }
   })

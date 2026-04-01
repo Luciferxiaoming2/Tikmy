@@ -239,6 +239,20 @@ export const useLibraryStore = defineStore('library', () => {
     return copiedVideo
   }
 
+  function deleteVideo(videoId: string) {
+    const currentVideo = videos.value.find((video) => video.id === videoId)
+
+    if (!currentVideo) {
+      throw new Error('视频不存在')
+    }
+
+    videos.value = videos.value.filter((video) => video.id !== videoId)
+    persistVideos()
+    syncCategoryStats()
+
+    return currentVideo
+  }
+
   const totalVideoCount = computed(() => videos.value.length)
 
   ensureDefaultCategory()
@@ -258,6 +272,7 @@ export const useLibraryStore = defineStore('library', () => {
     getVideosByCategory,
     moveVideoToCategory,
     copyVideoToCategory,
+    deleteVideo,
     syncCategoryStats,
   }
 })

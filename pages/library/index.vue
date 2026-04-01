@@ -157,6 +157,8 @@
       @close="closeVideoDetailSheet"
       @copy="startVideoTransfer('copy')"
       @move="startVideoTransfer('move')"
+      @download="handleVideoDownload"
+      @delete="confirmDeleteVideo"
     />
   </view>
 </template>
@@ -175,8 +177,9 @@ import {
   formatBytes,
   getSavedFileUsageSummary,
   persistMediaFile,
+  removePersistedFile,
 } from '@/services/platform/file-system'
-import { chooseVideos, normalizeChosenVideos } from '@/services/platform/media'
+import { chooseVideos, normalizeChosenVideos, saveVideoToAlbum } from '@/services/platform/media'
 import { getThemeOption } from '@/theme/presets'
 import type { SavedFileUsageSummary } from '@/services/platform/file-system'
 import type { Category, VideoAsset } from '@/types/domain'
@@ -191,7 +194,7 @@ const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 
 const { theme } = storeToRefs(userStore)
-const { categories, totalVideoCount } = storeToRefs(libraryStore)
+const { categories, totalVideoCount, videos } = storeToRefs(libraryStore)
 
 const showCategorySheet = ref(false)
 const sheetMode = ref<CategorySheetMode>('form')
@@ -514,6 +517,74 @@ function startVideoTransfer(mode: VideoTransferMode) {
       }
     },
   })
+}
+
+async function handleVideoDownload() {
+  const video = activeVideo.value
+
+  if (!video) {
+    return
+  }
+
+  try {
+    await saveVideoToAlbum(video.localPath)
+    uni.showToast({
+      title: '已保存到系统相册',
+      icon: 'success',
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+
+    uni.showToast({
+      title: message.toLowerCase().includes('deny') ? '请允许保存到相册权限' : '保存视频失败',
+      icon: 'none',
+    })
+  }
+}
+
+function confirmDeleteVideo() {
+  const video = activeVideo.value
+
+  if (!video) {
+    return
+  }
+
+  uni.showModal({
+    title: '删除视频',
+    content: '删除后将从当前素材库中移除，且不可撤销。',
+    confirmColor: '#ff5e57',
+    success: ({ confirm }) => {
+      if (!confirm) {
+        return
+      }
+
+      void handleDeleteVideo(video)
+    },
+  })
+}
+
+async function handleDeleteVideo(video: VideoAsset) {
+  try {
+    const deletedVideo = libraryStore.deleteVideo(video.id)
+    const hasSameLocalPath = videos.value.some((item) => item.localPath === deletedVideo.localPath)
+
+    if (!hasSameLocalPath) {
+      await removePersistedFile(deletedVideo.localPath)
+    }
+
+    await refreshStorageUsage()
+    closeVideoDetailSheet()
+
+    uni.showToast({
+      title: '视频已删除',
+      icon: 'success',
+    })
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '删除视频失败',
+      icon: 'none',
+    })
+  }
 }
 
 function buildCategoryCoverStyle(category: Category) {

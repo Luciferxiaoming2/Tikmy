@@ -64,6 +64,32 @@ export async function getSavedFileUsageSummary(): Promise<SavedFileUsageSummary>
   }
 }
 
+export async function removePersistedFile(filePath: string) {
+  if (!filePath || !filePath.startsWith('wxfile://')) {
+    return {
+      removed: false,
+    }
+  }
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      uni.removeSavedFile({
+        filePath,
+        success: () => resolve(),
+        fail: reject,
+      })
+    })
+
+    return {
+      removed: true,
+    }
+  } catch {
+    return {
+      removed: false,
+    }
+  }
+}
+
 export function estimateMediaFilesSize(
   mediaFiles: Array<WechatMiniprogram.MediaFile & { size?: number }>,
 ) {
