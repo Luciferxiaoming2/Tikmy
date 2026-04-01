@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="hero glass-panel" :style="panelInlineStyle">
       <text class="hero__eyebrow" :style="accentStyle">SETTINGS</text>
@@ -23,23 +23,15 @@
       <text class="section__copy" :style="textSecondaryStyle">
         先选播放范围，再决定顺序或随机。默认播放“全部”。
       </text>
-      <picker
-        mode="selector"
-        :range="playbackCategoryRange"
-        range-key="name"
-        :value="playbackCategoryIndex"
-        @change="handlePlaybackCategoryChange"
-      >
-        <view class="picker-card glass-panel" :style="[panelInlineStyle, activeCardStyle]">
-          <view class="picker-card__main">
-            <text class="picker-card__title" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
-            <text class="picker-card__copy" :style="textSecondaryStyle">
-              {{ playbackCategoryMeta }}
-            </text>
-          </view>
-          <text class="picker-card__action" :style="textMutedStyle">选择</text>
+      <view class="picker-card glass-panel" :style="[panelInlineStyle, activeCardStyle]" @tap="openCategoryPicker">
+        <view class="picker-card__main">
+          <text class="picker-card__title" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
+          <text class="picker-card__copy" :style="textSecondaryStyle">
+            {{ playbackCategoryMeta }}
+          </text>
         </view>
-      </picker>
+        <text class="picker-card__action" :style="textMutedStyle">选择</text>
+      </view>
     </view>
 
     <view class="section">
@@ -192,6 +184,36 @@
         </view>
       </view>
     </view>
+
+    <view v-if="isCategoryPickerOpen" class="sheet-mask" @tap="closeCategoryPicker" />
+    <view v-if="isCategoryPickerOpen" class="theme-sheet glass-panel" :style="sheetInlineStyle">
+      <view class="theme-sheet__header">
+        <view>
+          <text class="theme-sheet__title" :style="textPrimaryStyle">选择播放分类</text>
+          <text class="theme-sheet__subtitle" :style="textSecondaryStyle">
+            Home 页会只播放当前所选分类的视频。
+          </text>
+        </view>
+        <text class="theme-sheet__close" :style="textMutedStyle" @tap="closeCategoryPicker">关闭</text>
+      </view>
+
+      <scroll-view scroll-y class="theme-sheet__list theme-sheet__list--category">
+        <view
+          v-for="option in playbackCategoryRange"
+          :key="option.id"
+          class="theme-row"
+          :style="option.id === playbackCategoryId ? [themeOptionInlineStyle, activeBorderStyle] : themeOptionInlineStyle"
+          :data-category-id="option.id"
+          @tap="handlePlaybackCategoryTap"
+        >
+          <view class="theme-row__content">
+            <text class="theme-name" :style="textPrimaryStyle">{{ option.name }}</text>
+            <text class="theme-copy" :style="textSecondaryStyle">{{ option.videoCountLabel }}</text>
+          </view>
+          <text v-if="option.id === playbackCategoryId" class="theme-row__selected" :style="textPrimaryStyle">当前</text>
+        </view>
+      </scroll-view>
+    </view>
   </view>
 </template>
 
@@ -224,6 +246,7 @@ const libraryStore = useLibraryStore()
 const { categories } = storeToRefs(libraryStore)
 const { gestures, likeWeight, playbackCategoryId, playbackMode, theme, useBiometrics } = storeToRefs(userStore)
 const isThemePickerOpen = ref(false)
+const isCategoryPickerOpen = ref(false)
 
 const playbackCategoryOptions = computed(() => categories.value)
 const playbackCategoryRange = computed(() =>
@@ -317,10 +340,20 @@ function handleGestureChange(event: Event) {
   userStore.setGestureSetting(key, Boolean(detail?.value))
 }
 
-function handlePlaybackCategoryChange(event: Event) {
-  const value = Number((event as Event & { detail?: { value?: number | string } }).detail?.value ?? 0)
-  const option = playbackCategoryOptions.value[value]
-  userStore.setPlaybackCategory(option?.id || DEFAULT_CATEGORY_ID)
+function openCategoryPicker() {
+  isCategoryPickerOpen.value = true
+}
+
+function closeCategoryPicker() {
+  isCategoryPickerOpen.value = false
+}
+
+function handlePlaybackCategoryTap(event: Event) {
+  const dataset = (
+    event as Event & { currentTarget?: { dataset?: { categoryId?: string } } }
+  ).currentTarget?.dataset
+  userStore.setPlaybackCategory(dataset?.categoryId || DEFAULT_CATEGORY_ID)
+  closeCategoryPicker()
 }
 
 function handlePlaybackModeTap(event: Event) {
@@ -611,6 +644,10 @@ function handleThemeTap(event: Event) {
   flex-direction: column;
   gap: 16rpx;
   margin-top: 24rpx;
+}
+
+.theme-sheet__list--category {
+  max-height: 52vh;
 }
 
 .theme-row {
