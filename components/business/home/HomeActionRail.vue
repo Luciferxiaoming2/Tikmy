@@ -1,15 +1,21 @@
 <template>
   <view class="video-side-actions">
     <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('toggle-like')">
-      <text class="side-button__icon">{{ liked ? '♥' : '♡' }}</text>
-      <text class="side-button__text" :style="textPrimaryStyle">{{ liked ? '已喜欢' : '喜欢' }}</text>
+      <text class="side-button__icon">{{ liked ? '\u2665' : '\u2661' }}</text>
+      <text class="side-button__text" :style="textPrimaryStyle">{{ liked ? '\u5df2\u559c\u6b22' : '\u559c\u6b22' }}</text>
+    </view>
+    <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('toggle-favorite')">
+      <text class="side-button__icon">{{ favorited ? '\u2605' : '\u2606' }}</text>
+      <text class="side-button__text" :style="textPrimaryStyle">
+        {{ favorited ? '\u5df2\u6536\u85cf' : '\u6536\u85cf' }}
+      </text>
     </view>
     <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('open-info')">
-      <text class="side-button__icon">▶</text>
+      <text class="side-button__icon">{{ '\u25b6' }}</text>
       <text class="side-button__text" :style="textPrimaryStyle">{{ playCount }}</text>
     </view>
     <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('open-comments')">
-      <text class="side-button__icon">评</text>
+      <text class="side-button__icon">{{ '\u8bc4' }}</text>
       <text class="side-button__text" :style="textPrimaryStyle">{{ commentCount }}</text>
     </view>
   </view>
@@ -18,6 +24,7 @@
 <script setup lang="ts">
 defineProps<{
   liked: boolean
+  favorited: boolean
   playCount: number
   commentCount: number
   panelStyle: Record<string, string>
@@ -26,6 +33,7 @@ defineProps<{
 
 defineEmits<{
   (event: 'toggle-like'): void
+  (event: 'toggle-favorite'): void
   (event: 'open-info'): void
   (event: 'open-comments'): void
 }>()

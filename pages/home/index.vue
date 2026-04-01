@@ -49,11 +49,13 @@
 
           <HomeActionRail
             :liked="video.isLiked"
+            :favorited="video.isFavorite"
             :play-count="video.playCount"
             :comment-count="commentsForVideo(video.id).length"
             :panel-style="sideButtonStyle"
             :text-primary-style="textPrimaryStyle"
             @toggle-like="toggleLike(video.id)"
+            @toggle-favorite="toggleFavorite(video.id)"
             @open-info="openSheet('info')"
             @open-comments="openSheet('comments')"
           />
@@ -476,7 +478,10 @@ const infoStatsText = computed(() => {
 })
 const feedSignature = computed(() =>
   videos.value
-    .map((video) => `${video.id}:${video.categoryId}:${video.isLiked ? 1 : 0}:${video.playCount}:${video.createdAt}`)
+    .map(
+      (video) =>
+        `${video.id}:${video.categoryId}:${video.isLiked ? 1 : 0}:${video.isFavorite ? 1 : 0}:${video.playCount}:${video.createdAt}`,
+    )
     .join('|'),
 )
 
@@ -796,6 +801,10 @@ function getRandomNextIndex() {
 
 function toggleLike(videoId: string) {
   libraryStore.toggleLike(videoId)
+}
+
+function toggleFavorite(videoId: string) {
+  libraryStore.toggleFavorite(videoId)
 }
 
 function handleHomeCategoryTap(categoryId: string) {

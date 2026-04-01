@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
+import { DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID } from '@/repositories/library'
 import type { GestureSettings, PlaybackMode, VideoAsset } from '@/types/domain'
 
 export function buildHomeFeed(source: VideoAsset[], categoryId: string, mode: PlaybackMode, weight: number) {
@@ -71,6 +71,10 @@ function scoreVideo(video: VideoAsset, weight: number) {
 function filterVideosByCategory(source: VideoAsset[], categoryId: string) {
   if (!categoryId || categoryId === DEFAULT_CATEGORY_ID) {
     return source
+  }
+
+  if (categoryId === FAVORITES_CATEGORY_ID) {
+    return source.filter((video) => video.isFavorite)
   }
 
   return source.filter((video) => video.categoryId === categoryId)

@@ -8,12 +8,12 @@
           <text class="sheet-title" :style="textPrimaryStyle">{{ title }}</text>
           <text class="sheet-subtitle" :style="textMutedStyle">{{ subtitle }}</text>
         </view>
-        <text class="sheet-close" :style="textMutedStyle" @tap="$emit('close')">关闭</text>
+        <text class="sheet-close" :style="textMutedStyle" @tap="$emit('close')">{{ '\u5173\u95ed' }}</text>
       </view>
 
-      <view class="sheet-actions">
+      <view v-if="allowImport" class="sheet-actions">
         <view class="action-pill" :style="primaryActionStyle" @tap="$emit('import-category')">
-          <text class="action-pill__text action-pill__text--primary">导入到此分类</text>
+          <text class="action-pill__text action-pill__text--primary">{{ '\u5bfc\u5165\u5230\u6b64\u5206\u7c7b' }}</text>
         </view>
       </view>
 
@@ -34,8 +34,10 @@
       </view>
 
       <view v-else class="empty-state glass-panel" :style="cardStyle">
-        <text class="empty-state__title" :style="textPrimaryStyle">这个分类还没有视频</text>
-        <text class="empty-state__copy" :style="textSecondaryStyle">先导入几条视频，再在这里像相册一样查看和整理。</text>
+        <text class="empty-state__title" :style="textPrimaryStyle">{{ '\u8fd9\u4e2a\u5206\u7c7b\u8fd8\u6ca1\u6709\u89c6\u9891' }}</text>
+        <text class="empty-state__copy" :style="textSecondaryStyle">
+          {{ allowImport ? '\u5148\u5bfc\u5165\u51e0\u6761\u89c6\u9891\uff0c\u518d\u5728\u8fd9\u91cc\u50cf\u76f8\u518c\u4e00\u6837\u67e5\u770b\u548c\u6574\u7406\u3002' : '\u53bb\u64ad\u653e\u9875\u4e3a\u559c\u6b22\u7684\u89c6\u9891\u70b9\u51fb\u6536\u85cf\uff0c\u8fd9\u91cc\u4f1a\u81ea\u52a8\u6c47\u603b\u3002' }}
+        </text>
       </view>
     </view>
   </view>
@@ -49,6 +51,7 @@ defineProps<{
   title: string
   subtitle: string
   videos: VideoAsset[]
+  allowImport: boolean
   sheetStyle: Record<string, string>
   cardStyle: Record<string, string>
   textPrimaryStyle: Record<string, string>
@@ -219,27 +222,27 @@ function formatDate(timestamp: number) {
 
 .gallery-item__meta {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 12rpx;
   font-size: 20rpx;
   text-align: center;
 }
 
 .empty-state {
   margin-top: 24rpx;
-  padding: 34rpx 28rpx;
+  padding: 28rpx;
   border-radius: 28rpx;
 }
 
 .empty-state__title {
   display: block;
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 700;
 }
 
 .empty-state__copy {
   display: block;
-  margin-top: 12rpx;
-  font-size: 24rpx;
+  margin-top: 10rpx;
+  font-size: 22rpx;
   line-height: 1.6;
 }
 </style>

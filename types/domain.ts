@@ -37,6 +37,7 @@ export interface VideoAsset {
   height?: number
   importHint?: string
   isLiked: boolean
+  isFavorite: boolean
   playCount: number
   totalWatchTime: number
   createdAt: number

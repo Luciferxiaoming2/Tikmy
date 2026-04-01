@@ -2,7 +2,9 @@ import type { Category, VideoAsset } from '@/types/domain'
 import { detectVideoImportHint } from '@/services/platform/media'
 
 export const DEFAULT_CATEGORY_ID = 'default'
-export const DEFAULT_CATEGORY_NAME = '全部'
+export const DEFAULT_CATEGORY_NAME = '\u5168\u90e8'
+export const FAVORITES_CATEGORY_ID = 'favorites'
+export const FAVORITES_CATEGORY_NAME = '\u6536\u85cf'
 
 function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
@@ -21,25 +23,52 @@ export function createDefaultCategory(): Category {
   }
 }
 
+export function createFavoritesCategory(): Category {
+  const now = Date.now()
+
+  return {
+    id: FAVORITES_CATEGORY_ID,
+    name: FAVORITES_CATEGORY_NAME,
+    coverPath: '',
+    videoCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 export function ensureBaseCategories(categories: Category[]) {
-  if (!categories.length) {
-    return [createDefaultCategory()]
+  const normalizedCategories = categories.map((category) => {
+    if (category.id === DEFAULT_CATEGORY_ID) {
+      return {
+        ...category,
+        name: DEFAULT_CATEGORY_NAME,
+      }
+    }
+
+    if (category.id === FAVORITES_CATEGORY_ID) {
+      return {
+        ...category,
+        name: FAVORITES_CATEGORY_NAME,
+      }
+    }
+
+    return category
+  })
+
+  const hasDefaultCategory = normalizedCategories.some((category) => category.id === DEFAULT_CATEGORY_ID)
+  const hasFavoritesCategory = normalizedCategories.some((category) => category.id === FAVORITES_CATEGORY_ID)
+  const nextCategories = [...normalizedCategories]
+
+  if (!hasDefaultCategory) {
+    nextCategories.unshift(createDefaultCategory())
   }
 
-  const hasDefaultCategory = categories.some((category) => category.id === DEFAULT_CATEGORY_ID)
-
-  if (hasDefaultCategory) {
-    return categories.map((category) =>
-      category.id === DEFAULT_CATEGORY_ID
-        ? {
-            ...category,
-            name: DEFAULT_CATEGORY_NAME,
-          }
-        : category,
-    )
+  if (!hasFavoritesCategory) {
+    const defaultIndex = nextCategories.findIndex((category) => category.id === DEFAULT_CATEGORY_ID)
+    nextCategories.splice(defaultIndex >= 0 ? defaultIndex + 1 : 0, 0, createFavoritesCategory())
   }
 
-  return [createDefaultCategory(), ...categories]
+  return nextCategories
 }
 
 export function normalizeCategoryName(name: string) {
@@ -50,7 +79,7 @@ export function assertUniqueCategoryName(categories: Category[], name: string, i
   const normalizedName = normalizeCategoryName(name).toLowerCase()
 
   if (!normalizedName) {
-    throw new Error('分类名称不能为空')
+    throw new Error('\u5206\u7c7b\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a')
   }
 
   const duplicated = categories.some((category) => {
@@ -62,7 +91,7 @@ export function assertUniqueCategoryName(categories: Category[], name: string, i
   })
 
   if (duplicated) {
-    throw new Error('分类名称已存在')
+    throw new Error('\u5206\u7c7b\u540d\u79f0\u5df2\u5b58\u5728')
   }
 }
 
@@ -70,7 +99,7 @@ export function createCategoryEntity(name: string): Category {
   const normalizedName = normalizeCategoryName(name)
 
   if (!normalizedName) {
-    throw new Error('分类名称不能为空')
+    throw new Error('\u5206\u7c7b\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a')
   }
 
   const now = Date.now()
@@ -89,7 +118,7 @@ export function renameCategoryEntity(category: Category, name: string): Category
   const normalizedName = normalizeCategoryName(name)
 
   if (!normalizedName) {
-    throw new Error('分类名称不能为空')
+    throw new Error('\u5206\u7c7b\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a')
   }
 
   return {
@@ -126,6 +155,7 @@ export function createVideoAssets(
       height,
       importHint: detectVideoImportHint(file),
       isLiked: false,
+      isFavorite: false,
       playCount: 0,
       totalWatchTime: 0,
       createdAt: now + index,
@@ -179,7 +209,9 @@ export function cloneVideoAssetToCategory(video: VideoAsset, toCategoryId: strin
 
 export function syncCategoryStats(categories: Category[], videos: VideoAsset[]) {
   return categories.map((category) => {
-    const categoryVideos = videos.filter((video) => video.categoryId === category.id)
+    const categoryVideos = videos.filter((video) =>
+      category.id === FAVORITES_CATEGORY_ID ? video.isFavorite : video.categoryId === category.id,
+    )
     const latestVideo = categoryVideos.at(-1)
 
     return {

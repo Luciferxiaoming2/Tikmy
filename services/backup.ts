@@ -184,6 +184,7 @@ function normalizeVideos(videos?: VideoAsset[] | null) {
           height: typeof video.height === 'number' ? video.height : undefined,
           importHint: typeof video.importHint === 'string' ? video.importHint : '',
           isLiked: Boolean(video.isLiked),
+          isFavorite: Boolean(video.isFavorite),
           playCount: Math.max(0, Math.round(Number(video.playCount || 0))),
           totalWatchTime: Math.max(0, Number(video.totalWatchTime || 0)),
           createdAt: normalizeTimestamp(video.createdAt),

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="page-header">
       <text class="eyebrow" :style="accentStyle">LIBRARY</text>
@@ -66,7 +66,7 @@
               <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} 个视频</text>
             </view>
             <view
-              v-if="category.id !== DEFAULT_CATEGORY_ID"
+              v-if="!isProtectedCategory(category.id)"
               class="category-more"
               :style="secondaryActionStyle"
               @tap.stop="openCategoryActions(category)"
@@ -74,11 +74,14 @@
               <text class="category-more__text" :style="textMutedStyle">管理</text>
             </view>
           </view>
-          <text class="category-note" :style="textSecondaryStyle">
-            {{ category.videoCount ? '点开后可像相册一样查看此分类里的所有视频。' : '当前为空，可直接向该分类导入视频。' }}
-          </text>
+          <text class="category-note" :style="textSecondaryStyle">{{ getCategoryNote(category) }}</text>
           <view class="category-actions">
-            <view class="action action--compact" :style="primaryActionStyle" @tap.stop="handleImport(category.id)">
+            <view
+              v-if="canImportToCategory(category.id)"
+              class="action action--compact"
+              :style="primaryActionStyle"
+              @tap.stop="handleImport(category.id)"
+            >
               <text class="action-text action-text--primary">导入到此分类</text>
             </view>
           </view>
@@ -132,6 +135,7 @@
       :title="activeCategory?.name || '分类相册'"
       :subtitle="gallerySubtitle"
       :videos="activeCategoryVideos"
+      :allow-import="canImportToCategory(activeCategory?.id || '')"
       :sheet-style="sheetInlineStyle"
       :card-style="panelInlineStyle"
       :text-primary-style="textPrimaryStyle"
@@ -169,7 +173,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import CategoryGallerySheet from '@/components/business/library/CategoryGallerySheet.vue'
 import LibraryVideoDetailSheet from '@/components/business/library/LibraryVideoDetailSheet.vue'
-import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
+import { DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID } from '@/repositories/library'
 import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
 import {
@@ -189,6 +193,7 @@ type CategoryFormMode = 'create' | 'rename'
 type VideoTransferMode = 'copy' | 'move'
 
 const DEFAULT_IMPORT_CATEGORY_ID = DEFAULT_CATEGORY_ID
+const protectedCategoryIds = [DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID]
 
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
@@ -282,6 +287,26 @@ const gallerySubtitle = computed(() => `${activeCategoryVideos.value.length} 个
 onShow(() => {
   void refreshStorageUsage()
 })
+
+function isProtectedCategory(categoryId: string) {
+  return protectedCategoryIds.includes(categoryId)
+}
+
+function canImportToCategory(categoryId: string) {
+  return Boolean(categoryId) && categoryId !== FAVORITES_CATEGORY_ID
+}
+
+function getCategoryNote(category: Category) {
+  if (category.id === FAVORITES_CATEGORY_ID) {
+    return category.videoCount
+      ? '这里会自动汇总你已收藏的视频，无需重复导入或复制文件。'
+      : '去播放页点击收藏，已收藏的视频会自动出现在这里。'
+  }
+
+  return category.videoCount
+    ? '点开后可像相册一样查看此分类里的所有视频。'
+    : '当前为空，可直接向该分类导入视频。'
+}
 
 function openCreateCategory() {
   formMode.value = 'create'
@@ -492,7 +517,7 @@ function handleImport(categoryId: string) {
 }
 
 function handleGalleryImport() {
-  if (!activeCategory.value) {
+  if (!activeCategory.value || !canImportToCategory(activeCategory.value.id)) {
     return
   }
 
@@ -506,7 +531,9 @@ function startVideoTransfer(mode: VideoTransferMode) {
     return
   }
 
-  const destinationCategories = categories.value.filter((category) => category.id !== video.categoryId)
+  const destinationCategories = categories.value.filter(
+    (category) => category.id !== video.categoryId && category.id !== FAVORITES_CATEGORY_ID,
+  )
 
   if (!destinationCategories.length) {
     uni.showToast({
@@ -654,7 +681,7 @@ function formatReadableBytes(bytes: number) {
   gap: 12rpx;
 }
 
-.eyebrow {
+eyebrow {
   font-size: 24rpx;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -681,60 +708,64 @@ function formatReadableBytes(bytes: number) {
   display: flex;
   flex-direction: column;
   gap: 28rpx;
-  margin-top: 40rpx;
-  padding: 36rpx;
+  margin-top: 28rpx;
+  padding: 34rpx 32rpx;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
 }
 
 .hero-title {
-  display: block;
-  font-size: 38rpx;
+  font-size: 32rpx;
   font-weight: 700;
 }
 
-.hero-description {
-  display: block;
-  margin-top: 14rpx;
-  font-size: 26rpx;
-  line-height: 1.7;
-}
-
-.hero-meta {
-  display: block;
-  margin-top: 18rpx;
+.hero-description,
+.hero-meta,
+.section-meta,
+.category-count,
+.category-note,
+.storage-alert__copy,
+.sheet-label,
+.sheet-hint,
+.sheet-menu__hint {
   font-size: 22rpx;
   line-height: 1.6;
 }
 
 .hero-actions,
+.empty-actions,
 .category-actions,
-.empty-actions {
+.sheet-footer {
   display: flex;
-  flex-wrap: wrap;
   gap: 16rpx;
 }
 
 .action {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 180rpx;
-  padding: 20rpx 28rpx;
+  min-width: 220rpx;
+  min-height: 84rpx;
+  padding: 0 28rpx;
   border-radius: 9999rpx;
 }
 
-.action--compact {
-  min-width: 0;
-  padding: 18rpx 24rpx;
+.action--primary {
+  box-shadow: 0 20rpx 48rpx rgba(86, 228, 114, 0.22);
 }
 
+.action--compact,
 .action--sheet {
-  width: 100%;
-  min-height: 92rpx;
+  min-width: 0;
+  flex: 1;
 }
 
 .action-text {
   font-size: 24rpx;
-  line-height: 1;
 }
 
 .action-text--primary {
@@ -743,106 +774,95 @@ function formatReadableBytes(bytes: number) {
 }
 
 .storage-alert {
-  margin-top: 24rpx;
-  padding: 28rpx 30rpx;
+  margin-top: 22rpx;
+  padding: 24rpx 28rpx;
 }
 
 .storage-alert__title {
-  display: block;
-  color: #ffd5d2;
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.storage-alert__copy {
-  display: block;
-  margin-top: 10rpx;
+  color: #ff5b57;
   font-size: 24rpx;
-  line-height: 1.6;
+  font-weight: 700;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 40rpx;
-  margin-bottom: 20rpx;
+  margin-top: 38rpx;
 }
 
 .section-title {
-  font-size: 32rpx;
+  font-size: 38rpx;
   font-weight: 700;
 }
 
-.section-meta {
-  font-size: 24rpx;
-}
-
 .empty-state {
-  padding: 40rpx 32rpx;
+  margin-top: 20rpx;
+  padding: 30rpx 28rpx;
 }
 
 .empty-title {
-  display: block;
-  font-size: 32rpx;
+  font-size: 30rpx;
   font-weight: 700;
 }
 
 .empty-copy {
-  display: block;
-  margin-top: 14rpx;
-  font-size: 26rpx;
-  line-height: 1.7;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
 }
 
 .empty-actions {
-  margin-top: 22rpx;
+  margin-top: 24rpx;
 }
 
 .category-list {
   display: flex;
   flex-direction: column;
-  gap: 20rpx;
+  gap: 18rpx;
+  margin-top: 18rpx;
 }
 
 .category-card {
   display: flex;
-  gap: 24rpx;
-  padding: 24rpx;
+  gap: 22rpx;
+  padding: 22rpx;
 }
 
 .category-cover {
+  width: 148rpx;
+  height: 148rpx;
+  border-radius: 28rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 168rpx;
-  height: 168rpx;
-  flex-shrink: 0;
-  border-radius: 28rpx;
   overflow: hidden;
 }
 
 .category-cover__fallback {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 34rpx;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 28rpx;
   font-weight: 700;
 }
 
 .category-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
   min-width: 0;
 }
 
 .category-head {
   display: flex;
   justify-content: space-between;
-  gap: 16rpx;
   align-items: flex-start;
+  gap: 16rpx;
 }
 
 .category-head__main {
-  min-width: 0;
   flex: 1;
+  min-width: 0;
 }
 
 .category-name {
@@ -851,42 +871,25 @@ function formatReadableBytes(bytes: number) {
   font-weight: 700;
 }
 
-.category-count {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 24rpx;
-}
-
 .category-more {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 100rpx;
-  min-height: 60rpx;
+  min-width: 104rpx;
+  min-height: 62rpx;
   padding: 0 20rpx;
   border-radius: 9999rpx;
 }
 
-.category-more__text {
+.category-more__text,
+.sheet-close {
   font-size: 22rpx;
-}
-
-.category-note {
-  display: block;
-  margin-top: 12rpx;
-  font-size: 25rpx;
-  line-height: 1.6;
-}
-
-.category-actions {
-  margin-top: 18rpx;
 }
 
 .sheet-mask {
   position: fixed;
   inset: 0;
-  z-index: 40;
-  background: rgba(8, 8, 8, 0.28);
+  background: rgba(8, 8, 8, 0.22);
 }
 
 .sheet-panel {
@@ -894,12 +897,12 @@ function formatReadableBytes(bytes: number) {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 41;
-  padding: 20rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  transform: translateY(102%);
+  transition: transform 0.24s ease;
+  padding: 20rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));
   border-top-left-radius: 36rpx;
   border-top-right-radius: 36rpx;
-  transform: translateY(100%);
-  transition: transform 220ms ease;
+  z-index: 20;
 }
 
 .sheet-panel--open {
@@ -916,82 +919,54 @@ function formatReadableBytes(bytes: number) {
 
 .sheet-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   gap: 16rpx;
 }
 
 .sheet-title {
-  font-size: 34rpx;
+  font-size: 30rpx;
   font-weight: 700;
 }
 
-.sheet-close {
-  font-size: 26rpx;
-}
-
-.sheet-body {
-  margin-top: 28rpx;
-}
-
-.sheet-label {
-  display: block;
-  font-size: 24rpx;
-  margin-bottom: 16rpx;
+.sheet-body,
+.sheet-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+  margin-top: 26rpx;
 }
 
 .sheet-input {
   width: 100%;
-  min-height: 96rpx;
+  min-height: 92rpx;
+  padding: 0 24rpx;
+  border-radius: 28rpx;
+  font-size: 28rpx;
   box-sizing: border-box;
-  padding: 0 28rpx;
-  border-radius: 28rpx;
-  font-size: 30rpx;
-  line-height: 96rpx;
-}
-
-.sheet-hint {
-  display: block;
-  margin-top: 14rpx;
-  font-size: 22rpx;
-  line-height: 1.6;
-}
-
-.sheet-footer {
-  margin-top: 28rpx;
-}
-
-.sheet-menu {
-  margin-top: 24rpx;
-  overflow: hidden;
-  border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.04);
 }
 
 .sheet-menu__item {
-  padding: 28rpx;
-}
-
-.sheet-menu__item + .sheet-menu__item {
-  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
-}
-
-.sheet-menu__item--danger {
-  background: rgba(255, 94, 87, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 24rpx 8rpx;
 }
 
 .sheet-menu__text {
-  display: block;
-  font-size: 30rpx;
+  font-size: 26rpx;
+}
+
+.sheet-menu__item--danger {
+  border-top: 1rpx solid rgba(142, 142, 147, 0.18);
 }
 
 .sheet-menu__text--danger {
   color: #ff5e57;
+  font-weight: 700;
 }
 
-.sheet-menu__hint {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 22rpx;
+.sheet-footer {
+  margin-top: 28rpx;
 }
 </style>
