@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="hero glass-panel" :style="panelInlineStyle">
       <text class="hero__eyebrow" :style="accentStyle">SETTINGS</text>
@@ -6,6 +6,19 @@
       <text class="hero__copy" :style="textSecondaryStyle">
         调整刷视频时的交互偏好、喜欢权重、备份恢复与主题表现。
       </text>
+    </view>
+    <view class="section">
+      <text class="section__title" :style="textPrimaryStyle">主题</text>
+      <view class="theme-trigger glass-panel" :style="panelInlineStyle" @tap="toggleThemePicker">
+        <view class="setting-main">
+          <text class="label" :style="textPrimaryStyle">当前主题</text>
+          <text class="setting-subtitle" :style="textSecondaryStyle">{{ activeTheme.description }}</text>
+        </view>
+        <view class="setting-meta">
+          <text class="value" :style="textMutedStyle">{{ activeTheme.name }}</text>
+          <text class="chevron" :style="textMutedStyle">切换</text>
+        </view>
+      </view>
     </view>
 
     <view class="section">
@@ -120,19 +133,6 @@
       </view>
     </view>
 
-    <view class="section">
-      <text class="section__title" :style="textPrimaryStyle">主题</text>
-      <view class="theme-trigger glass-panel" :style="panelInlineStyle" @tap="toggleThemePicker">
-        <view class="setting-main">
-          <text class="label" :style="textPrimaryStyle">当前主题</text>
-          <text class="setting-subtitle" :style="textSecondaryStyle">{{ activeTheme.description }}</text>
-        </view>
-        <view class="setting-meta">
-          <text class="value" :style="textMutedStyle">{{ activeTheme.name }}</text>
-          <text class="chevron" :style="textMutedStyle">切换</text>
-        </view>
-      </view>
-    </view>
 
     <view v-if="isThemePickerOpen" class="sheet-mask" @tap="closeThemePicker" />
     <view v-if="isThemePickerOpen" class="theme-sheet glass-panel" :style="sheetInlineStyle">

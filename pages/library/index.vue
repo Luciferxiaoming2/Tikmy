@@ -48,7 +48,9 @@
       </view>
     </view>
 
-    <view v-else class="category-list">
+    <view v-else class="category-list-shell" :style="categoryListShellStyle">
+      <scroll-view scroll-y enable-flex show-scrollbar class="category-list-scroll">
+        <view class="category-list">
       <view
         v-for="category in categories"
         :key="category.id"
@@ -87,6 +89,8 @@
           </view>
         </view>
       </view>
+        </view>
+      </scroll-view>
     </view>
 
     <view v-if="showCategorySheet" class="sheet-mask" @tap="closeCategorySheet" />
@@ -260,6 +264,12 @@ const warningPanelStyle = computed(() => ({
   background: 'rgba(255, 91, 87, 0.12)',
   border: '1rpx solid rgba(255, 91, 87, 0.24)',
   boxShadow: activeTheme.value.shadowSoft,
+}))
+const categoryListShellStyle = computed(() => ({
+  background: 'transparent',
+  border: 'none',
+  boxShadow: 'none',
+  backdropFilter: 'none',
 }))
 const storageSummaryText = computed(() => {
   if (!storageUsage.value.available) {
@@ -671,14 +681,19 @@ function formatReadableBytes(bytes: number) {
 
 <style scoped lang="scss">
 .page-shell {
-  min-height: 100vh;
+  height: 100vh;
   padding: 96rpx 40rpx 48rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-header {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+  flex-shrink: 0;
 }
 
 eyebrow {
@@ -699,6 +714,7 @@ eyebrow {
 
 .hero,
 .empty-state,
+.category-list-shell,
 .category-card,
 .storage-alert {
   border-radius: var(--mt-radius-card);
@@ -710,6 +726,7 @@ eyebrow {
   gap: 28rpx;
   margin-top: 28rpx;
   padding: 34rpx 32rpx;
+  flex-shrink: 0;
 }
 
 .hero-copy {
@@ -776,6 +793,7 @@ eyebrow {
 .storage-alert {
   margin-top: 22rpx;
   padding: 24rpx 28rpx;
+  flex-shrink: 0;
 }
 
 .storage-alert__title {
@@ -789,6 +807,7 @@ eyebrow {
   justify-content: space-between;
   align-items: center;
   margin-top: 38rpx;
+  flex-shrink: 0;
 }
 
 .section-title {
@@ -816,11 +835,26 @@ eyebrow {
   margin-top: 24rpx;
 }
 
+.category-list-shell {
+  margin-top: 18rpx;
+  padding: 18rpx 14rpx 18rpx 18rpx;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.category-list-scroll {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+
 .category-list {
   display: flex;
   flex-direction: column;
   gap: 18rpx;
-  margin-top: 18rpx;
+  padding-right: 8rpx;
 }
 
 .category-card {
