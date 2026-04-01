@@ -1,7 +1,9 @@
+import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
 import type { GestureSettings, PlaybackMode, VideoAsset } from '@/types/domain'
 
-export function buildHomeFeed(source: VideoAsset[], mode: PlaybackMode, weight: number) {
-  return mode === 'random' ? buildRandomFeed(source, weight) : buildSequentialFeed(source)
+export function buildHomeFeed(source: VideoAsset[], categoryId: string, mode: PlaybackMode, weight: number) {
+  const filteredSource = filterVideosByCategory(source, categoryId)
+  return mode === 'random' ? buildRandomFeed(filteredSource, weight) : buildSequentialFeed(filteredSource)
 }
 
 export function getPlaybackModeLabel(mode: PlaybackMode) {
@@ -64,4 +66,12 @@ function scoreVideo(video: VideoAsset, weight: number) {
   const watchBoost = Math.min(video.totalWatchTime / 12, 4)
 
   return Math.random() * 10 + likedBoost + freshnessBoost + watchBoost
+}
+
+function filterVideosByCategory(source: VideoAsset[], categoryId: string) {
+  if (!categoryId || categoryId === DEFAULT_CATEGORY_ID) {
+    return source
+  }
+
+  return source.filter((video) => video.categoryId === categoryId)
 }

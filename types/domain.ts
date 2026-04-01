@@ -11,6 +11,7 @@ export interface UserSettings {
   passcode: string
   useBiometrics: boolean
   theme: ThemeId
+  playbackCategoryId: string
   playbackMode: PlaybackMode
   likeWeight: number
   gestures: GestureSettings

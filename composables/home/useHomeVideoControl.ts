@@ -9,6 +9,7 @@ export function syncVideoPlayback(videos: VideoAsset[], activeId: string) {
     const context = uni.createVideoContext(videoDomId(video.id))
 
     if (video.id === activeId) {
+      context.seek(0)
       context.playbackRate(1)
       context.play()
       return
@@ -33,4 +34,11 @@ export function toggleVideoPlayback(videoId: string, paused: boolean) {
 
 export function setVideoPlaybackRate(videoId: string, rate: number) {
   uni.createVideoContext(videoDomId(videoId)).playbackRate(rate)
+}
+
+export function playVideoFromStart(videoId: string) {
+  const context = uni.createVideoContext(videoDomId(videoId))
+  context.seek(0)
+  context.playbackRate(1)
+  context.play()
 }

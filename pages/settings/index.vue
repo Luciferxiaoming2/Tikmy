@@ -2,34 +2,62 @@
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="hero glass-panel" :style="panelInlineStyle">
       <text class="hero__eyebrow" :style="accentStyle">SETTINGS</text>
-      <text class="hero__title" :style="textPrimaryStyle">播放偏好</text>
+      <text class="hero__title" :style="textPrimaryStyle">播放设置</text>
       <text class="hero__copy" :style="textSecondaryStyle">
-        控制 Home 页的视频排列策略、喜欢权重和快捷手势，所有设置都只保存在本机。
+        控制 Home 页的播放范围、顺序和交互偏好，优先保证刷视频时的稳定体验。
       </text>
       <view class="hero__chips">
         <view class="hero-chip" :style="chipInlineStyle">
-          <text class="hero-chip__label" :style="textMutedStyle">当前模式</text>
-          <text class="hero-chip__value" :style="textPrimaryStyle">{{ playbackModeLabel }}</text>
+          <text class="hero-chip__label" :style="textMutedStyle">播放分类</text>
+          <text class="hero-chip__value" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
         </view>
         <view class="hero-chip" :style="chipInlineStyle">
-          <text class="hero-chip__label" :style="textMutedStyle">喜欢权重</text>
-          <text class="hero-chip__value" :style="textPrimaryStyle">{{ likeWeight }}%</text>
+          <text class="hero-chip__label" :style="textMutedStyle">播放模式</text>
+          <text class="hero-chip__value" :style="textPrimaryStyle">{{ playbackModeLabel }}</text>
         </view>
       </view>
     </view>
 
     <view class="section">
+      <text class="section__title" :style="textPrimaryStyle">播放分类</text>
+      <text class="section__copy" :style="textSecondaryStyle">
+        先选播放范围，再决定顺序或随机。默认播放“全部”。
+      </text>
+      <picker
+        mode="selector"
+        :range="playbackCategoryRange"
+        range-key="name"
+        :value="playbackCategoryIndex"
+        @change="handlePlaybackCategoryChange"
+      >
+        <view class="picker-card glass-panel" :style="[panelInlineStyle, activeCardStyle]">
+          <view class="picker-card__main">
+            <text class="picker-card__title" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
+            <text class="picker-card__copy" :style="textSecondaryStyle">
+              {{ playbackCategoryMeta }}
+            </text>
+          </view>
+          <text class="picker-card__action" :style="textMutedStyle">选择</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="section">
       <text class="section__title" :style="textPrimaryStyle">播放模式</text>
-      <view class="mode-grid">
+      <text class="section__copy" :style="textSecondaryStyle">
+        顺序模式播完当前分类后会从头循环；随机模式会在当前分类里随机抽取。
+      </text>
+      <view class="selection-grid">
         <view
           v-for="option in playbackModeOptions"
           :key="option.value"
-          class="mode-card glass-panel"
+          class="selection-card glass-panel"
           :style="option.value === playbackMode ? [panelInlineStyle, activeCardStyle] : panelInlineStyle"
-          @tap="selectPlaybackMode(option.value)"
+          :data-mode="option.value"
+          @tap="handlePlaybackModeTap"
         >
-          <text class="mode-card__title" :style="textPrimaryStyle">{{ option.label }}</text>
-          <text class="mode-card__copy" :style="textSecondaryStyle">{{ option.description }}</text>
+          <text class="selection-card__title" :style="textPrimaryStyle">{{ option.label }}</text>
+          <text class="selection-card__copy" :style="textSecondaryStyle">{{ option.description }}</text>
         </view>
       </view>
     </view>
@@ -39,9 +67,9 @@
       <view class="weight-card glass-panel" :style="panelInlineStyle">
         <view class="weight-card__header">
           <view>
-            <text class="weight-card__title" :style="textPrimaryStyle">已喜欢视频优先级</text>
+            <text class="weight-card__title" :style="textPrimaryStyle">随机播放时的喜欢加权</text>
             <text class="weight-card__copy" :style="textSecondaryStyle">
-              数值越高，随机模式下已喜欢的视频越容易再次刷到。
+              只在随机模式生效。权重越高，已点赞视频越容易再次出现。
             </text>
           </view>
           <text class="weight-card__value" :style="accentStyle">{{ likeWeight }}%</text>
@@ -59,42 +87,50 @@
         />
         <view class="weight-scale">
           <text class="weight-scale__label" :style="textMutedStyle">更均匀</text>
-          <text class="weight-scale__label" :style="textMutedStyle">更偏爱已喜欢</text>
+          <text class="weight-scale__label" :style="textMutedStyle">更偏向已喜欢</text>
         </view>
       </view>
     </view>
 
     <view class="section">
-      <text class="section__title" :style="textPrimaryStyle">手势开关</text>
+      <text class="section__title" :style="textPrimaryStyle">手势偏好</text>
       <view class="setting-list">
         <view class="setting-item glass-panel" :style="panelInlineStyle">
           <view class="setting-main">
             <text class="label" :style="textPrimaryStyle">双击点赞</text>
-            <text class="setting-subtitle" :style="textSecondaryStyle">在 Home 页双击视频舞台可快速切换喜欢状态。</text>
+            <text class="setting-subtitle" :style="textSecondaryStyle">
+              开启后，Home 页双击当前视频会直接点赞。
+            </text>
           </view>
           <switch
             :checked="gestures.doubleTapLike"
             :color="activeTheme.primary"
-            @change="handleGestureChange('doubleTapLike', $event)"
+            data-key="doubleTapLike"
+            @change="handleGestureChange"
           />
         </view>
 
         <view class="setting-item glass-panel" :style="panelInlineStyle">
           <view class="setting-main">
-            <text class="label" :style="textPrimaryStyle">长按倍速</text>
-            <text class="setting-subtitle" :style="textSecondaryStyle">长按当前视频时临时切换为 2 倍速，松手恢复。</text>
+            <text class="label" :style="textPrimaryStyle">长按 2 倍速</text>
+            <text class="setting-subtitle" :style="textSecondaryStyle">
+              开启后，长按当前视频临时切到 2 倍速，松手恢复。
+            </text>
           </view>
           <switch
             :checked="gestures.longPressSpeed"
             :color="activeTheme.primary"
-            @change="handleGestureChange('longPressSpeed', $event)"
+            data-key="longPressSpeed"
+            @change="handleGestureChange"
           />
         </view>
 
         <view class="setting-item glass-panel" :style="panelInlineStyle">
           <view class="setting-main">
-            <text class="label" :style="textPrimaryStyle">生物识别预留</text>
-            <text class="setting-subtitle" :style="textSecondaryStyle">先保留开关位置，后续隐私锁版本再接入真实能力。</text>
+            <text class="label" :style="textPrimaryStyle">生物识别占位</text>
+            <text class="setting-subtitle" :style="textSecondaryStyle">
+              预留给后续隐私能力，当前不影响 MVP 主流程。
+            </text>
           </view>
           <switch
             :checked="useBiometrics"
@@ -109,12 +145,12 @@
       <text class="section__title" :style="textPrimaryStyle">主题</text>
       <view class="theme-trigger glass-panel" :style="panelInlineStyle" @tap="toggleThemePicker">
         <view class="setting-main">
-          <text class="label" :style="textPrimaryStyle">界面主题</text>
+          <text class="label" :style="textPrimaryStyle">当前主题</text>
           <text class="setting-subtitle" :style="textSecondaryStyle">{{ activeTheme.description }}</text>
         </view>
         <view class="setting-meta">
           <text class="value" :style="textMutedStyle">{{ activeTheme.name }}</text>
-          <text class="chevron" :style="textMutedStyle">更换</text>
+          <text class="chevron" :style="textMutedStyle">切换</text>
         </view>
       </view>
     </view>
@@ -125,7 +161,7 @@
         <view>
           <text class="theme-sheet__title" :style="textPrimaryStyle">选择主题</text>
           <text class="theme-sheet__subtitle" :style="textSecondaryStyle">
-            主题会同步到素材库、Home 和底部 TabBar。
+            主题会同步影响页面背景、面板层次和底部导航观感。
           </text>
         </view>
         <text class="theme-sheet__close" :style="textMutedStyle" @tap="closeThemePicker">关闭</text>
@@ -137,7 +173,8 @@
           :key="option.id"
           class="theme-row"
           :style="option.id === theme ? [themeOptionInlineStyle, activeBorderStyle] : themeOptionInlineStyle"
-          @tap="selectTheme(option.id)"
+          :data-theme-id="option.id"
+          @tap="handleThemeTap"
         >
           <view class="theme-row__preview">
             <view
@@ -159,8 +196,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
+import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
 import { THEME_OPTIONS, getThemeOption } from '@/theme/presets'
 import type { ThemeId } from '@/theme/presets'
@@ -171,23 +210,44 @@ const playbackModeOptions: Array<{ value: PlaybackMode; label: string; descripti
   {
     value: 'sequential',
     label: '顺序播放',
-    description: '按导入时间依次刷视频，适合整理素材和连续检查内容。',
+    description: '按当前分类的视频顺序播放，播到最后一条后自动回到第一条继续循环。',
   },
   {
     value: 'random',
     label: '随机播放',
-    description: '自动打散顺序，并结合喜欢权重调整刷到已喜欢视频的概率。',
+    description: '只在当前分类内随机抽取视频，适合反复刷同一类素材时打散顺序。',
   },
 ]
 
 const userStore = useUserStore()
-const { gestures, likeWeight, playbackMode, theme, useBiometrics } = storeToRefs(userStore)
+const libraryStore = useLibraryStore()
+const { categories } = storeToRefs(libraryStore)
+const { gestures, likeWeight, playbackCategoryId, playbackMode, theme, useBiometrics } = storeToRefs(userStore)
 const isThemePickerOpen = ref(false)
 
+const playbackCategoryOptions = computed(() => categories.value)
+const playbackCategoryRange = computed(() =>
+  playbackCategoryOptions.value.map((option) => ({
+    id: option.id,
+    name: option.name,
+    videoCountLabel: `${option.videoCount} 个视频`,
+  })),
+)
 const activeTheme = computed(() => getThemeOption(theme.value))
 const playbackModeLabel = computed(
   () => playbackModeOptions.find((option) => option.value === playbackMode.value)?.label || '顺序播放',
 )
+const playbackCategoryLabel = computed(
+  () => playbackCategoryOptions.value.find((option) => option.id === playbackCategoryId.value)?.name || '全部',
+)
+const playbackCategoryIndex = computed(() => {
+  const index = playbackCategoryOptions.value.findIndex((option) => option.id === playbackCategoryId.value)
+  return index >= 0 ? index : 0
+})
+const playbackCategoryMeta = computed(() => {
+  const option = playbackCategoryOptions.value[playbackCategoryIndex.value]
+  return option ? `${option.videoCount} 个视频` : '0 个视频'
+})
 const themeClass = computed(() => `theme--${theme.value}`)
 const pageInlineStyle = computed(() => ({
   background: activeTheme.value.pageBackground,
@@ -222,6 +282,18 @@ const textSecondaryStyle = computed(() => ({ color: activeTheme.value.textSecond
 const textMutedStyle = computed(() => ({ color: activeTheme.value.textMuted }))
 const accentStyle = computed(() => ({ color: activeTheme.value.primary }))
 
+watch(
+  categories,
+  (nextCategories) => {
+    if (!nextCategories.some((category) => category.id === playbackCategoryId.value)) {
+      userStore.setPlaybackCategory(DEFAULT_CATEGORY_ID)
+    }
+  },
+  {
+    immediate: true,
+  },
+)
+
 function handleBiometricChange(event: Event) {
   const detail = (event as Event & { detail?: { value?: boolean } }).detail
   userStore.setUseBiometrics(Boolean(detail?.value))
@@ -232,13 +304,28 @@ function handleLikeWeightChange(event: Event) {
   userStore.setLikeWeight(Number(detail?.value || 0))
 }
 
-function handleGestureChange(key: keyof GestureSettings, event: Event) {
+function handleGestureChange(event: Event) {
+  const key = (
+    event as Event & { currentTarget?: { dataset?: { key?: keyof GestureSettings } } }
+  ).currentTarget?.dataset?.key
   const detail = (event as Event & { detail?: { value?: boolean } }).detail
+
+  if (!key) {
+    return
+  }
+
   userStore.setGestureSetting(key, Boolean(detail?.value))
 }
 
-function selectPlaybackMode(value: PlaybackMode) {
-  userStore.setPlaybackMode(value)
+function handlePlaybackCategoryChange(event: Event) {
+  const value = Number((event as Event & { detail?: { value?: number | string } }).detail?.value ?? 0)
+  const option = playbackCategoryOptions.value[value]
+  userStore.setPlaybackCategory(option?.id || DEFAULT_CATEGORY_ID)
+}
+
+function handlePlaybackModeTap(event: Event) {
+  const dataset = (event as Event & { currentTarget?: { dataset?: { mode?: PlaybackMode } } }).currentTarget?.dataset
+  userStore.setPlaybackMode(dataset?.mode === 'random' ? 'random' : 'sequential')
 }
 
 function toggleThemePicker() {
@@ -249,8 +336,12 @@ function closeThemePicker() {
   isThemePickerOpen.value = false
 }
 
-function selectTheme(themeId: ThemeId) {
-  userStore.setTheme(themeId)
+function handleThemeTap(event: Event) {
+  const dataset = (event as Event & { currentTarget?: { dataset?: { themeId?: ThemeId } } }).currentTarget?.dataset
+
+  if (dataset?.themeId) {
+    userStore.setTheme(dataset.themeId)
+  }
 }
 </script>
 
@@ -315,30 +406,69 @@ function selectTheme(themeId: ThemeId) {
 
 .section__title {
   display: block;
-  margin-bottom: 18rpx;
+  margin-bottom: 12rpx;
   font-size: 32rpx;
   font-weight: 700;
 }
 
-.mode-grid {
+.section__copy {
+  display: block;
+  margin-bottom: 18rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.selection-grid {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
 }
 
-.mode-card {
+.picker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
   padding: 28rpx;
   border-radius: 28rpx;
   border: 2rpx solid transparent;
 }
 
-.mode-card__title {
+.picker-card__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-card__title {
   display: block;
   font-size: 30rpx;
   font-weight: 700;
 }
 
-.mode-card__copy {
+.picker-card__copy {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.picker-card__action {
+  font-size: 24rpx;
+}
+
+.selection-card {
+  padding: 28rpx;
+  border-radius: 28rpx;
+  border: 2rpx solid transparent;
+}
+
+.selection-card__title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.selection-card__copy {
   display: block;
   margin-top: 10rpx;
   font-size: 24rpx;

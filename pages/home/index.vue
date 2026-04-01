@@ -38,6 +38,7 @@
             object-fit="contain"
             @timeupdate="handleTimeUpdate(video.id, $event)"
             @play="handleVideoPlay(video.id)"
+            @ended="handleVideoEnded(video.id)"
           />
 
           <view class="video-scrim" />
@@ -45,7 +46,7 @@
           <view class="video-topbar">
             <text class="video-topbar__tag" :style="accentStyle">Private Home</text>
             <text class="video-topbar__meta" :style="textMutedStyle">
-              {{ playbackModeLabel }} · {{ activeIndexLabel(video.id) }}
+              {{ playbackCategoryLabel }} · {{ playbackModeLabel }} · {{ activeIndexLabel(video.id) }}
             </text>
           </view>
 
@@ -60,11 +61,14 @@
             @open-comments="openSheet('comments')"
           />
 
-          <view v-if="video.id === activeVideoId && isActiveVideoPaused" class="pause-indicator glass-panel" :style="panelInlineStyle">
-            <text class="pause-indicator__icon">▶</text>
-            <text class="pause-indicator__label" :style="textPrimaryStyle">继续播放</text>
+          <view
+            v-if="video.id === activeVideoId && isActiveVideoPaused"
+            class="pause-indicator glass-panel"
+            :style="panelInlineStyle"
+          >
+            <text class="pause-indicator__icon">II</text>
+            <text class="pause-indicator__label" :style="textPrimaryStyle">已暂停</text>
           </view>
-
         </view>
       </swiper-item>
     </swiper>
@@ -74,7 +78,7 @@
       <HomeInfoPanel
         v-if="activeSheet === 'info'"
         :category-name="categoryNameFor(activeVideo.categoryId)"
-        :stats-text="`时长 ${formatDuration(activeVideo.duration)} · 已观看 ${formatWatchTime(activeVideo.totalWatchTime)}`"
+        :stats-text="infoStatsText"
         :hint="gestureHint"
         :panel-style="summaryStyle"
         :text-primary-style="textPrimaryStyle"
@@ -119,6 +123,7 @@ import {
   getPlaybackModeLabel,
 } from '@/composables/home/useHomeFeed'
 import {
+  playVideoFromStart,
   setVideoPlaybackRate,
   syncVideoPlayback,
   toggleVideoPlayback,
@@ -136,7 +141,7 @@ const libraryStore = useLibraryStore()
 const playerStore = usePlayerStore()
 const commentStore = useCommentStore()
 
-const { gestures, likeWeight, playbackMode, theme } = storeToRefs(userStore)
+const { gestures, likeWeight, playbackCategoryId, playbackMode, theme } = storeToRefs(userStore)
 const { categories, videos } = storeToRefs(libraryStore)
 const { activeVideoId } = storeToRefs(playerStore)
 
@@ -153,6 +158,9 @@ const isActiveVideoPaused = ref(false)
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
 const playbackModeLabel = computed(() => getPlaybackModeLabel(playbackMode.value))
+const playbackCategoryLabel = computed(
+  () => categories.value.find((category) => category.id === playbackCategoryId.value)?.name || '全部',
+)
 const gestureHint = computed(() => getGestureHint(gestures.value))
 const homeInlineStyle = computed(() => ({
   background: activeTheme.value.homeBackground,
@@ -190,16 +198,35 @@ const primaryActionStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.primary}`,
 }))
 const activeVideo = computed(() => feedVideos.value.find((video) => video.id === activeVideoId.value) || null)
+const infoStatsText = computed(() => {
+  if (!activeVideo.value) {
+    return ''
+  }
+
+  return `时长 ${formatDuration(activeVideo.value.duration)} · 已观看 ${formatWatchTime(activeVideo.value.totalWatchTime)} · 播放 ${activeVideo.value.playCount} 次`
+})
 const feedSignature = computed(() =>
   videos.value
-    .map((video) => `${video.id}:${video.isLiked ? 1 : 0}:${video.playCount}:${video.createdAt}`)
+    .map((video) => `${video.id}:${video.categoryId}:${video.isLiked ? 1 : 0}:${video.playCount}:${video.createdAt}`)
     .join('|'),
 )
 
 watch(
-  [feedSignature, playbackMode, likeWeight],
+  [feedSignature, playbackCategoryId, playbackMode, likeWeight],
   () => {
-    feedVideos.value = buildHomeFeed(videos.value, playbackMode.value, likeWeight.value)
+    feedVideos.value = buildHomeFeed(videos.value, playbackCategoryId.value, playbackMode.value, likeWeight.value)
+  },
+  {
+    immediate: true,
+  },
+)
+
+watch(
+  categories,
+  (nextCategories) => {
+    if (!nextCategories.some((category) => category.id === playbackCategoryId.value)) {
+      userStore.setPlaybackCategory(nextCategories[0]?.id || '')
+    }
   },
   {
     immediate: true,
@@ -219,9 +246,7 @@ watch(
       nextVideos[0]
 
     const nextIndex = nextVideos.findIndex((video) => video.id === currentVideo.id)
-    if (!playerStore.activeVideoId || playerStore.currentIndex !== nextIndex) {
-      activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
-    }
+    activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
   },
   {
     immediate: true,
@@ -251,6 +276,7 @@ function activateVideo(videoId: string, index: number) {
   activeSheet.value = 'none'
   clearPendingSingleTap()
   speedBoostVideoId.value = ''
+  commentDraft.value = ''
 
   if (!playedVideoIds.value.includes(videoId)) {
     playedVideoIds.value = [...playedVideoIds.value, videoId]
@@ -267,7 +293,6 @@ function handleSwiperChange(event: { detail?: { current?: number } }) {
   }
 
   activateVideo(video.id, nextIndex)
-  commentDraft.value = ''
 }
 
 function handleVideoPlay(videoId: string) {
@@ -276,6 +301,40 @@ function handleVideoPlay(videoId: string) {
   if (index >= 0) {
     playerStore.setActiveVideo(videoId, index)
     isActiveVideoPaused.value = false
+  }
+}
+
+function handleVideoEnded(videoId: string) {
+  if (videoId !== activeVideoId.value || !feedVideos.value.length) {
+    return
+  }
+
+  if (playbackMode.value === 'random') {
+    const nextIndex = getRandomNextIndex()
+    const nextVideo = feedVideos.value[nextIndex]
+
+    if (!nextVideo) {
+      return
+    }
+
+    activateVideo(nextVideo.id, nextIndex)
+    if (nextVideo.id === videoId) {
+      playVideoFromStart(videoId)
+    }
+    return
+  }
+
+  const currentIndex = feedVideos.value.findIndex((video) => video.id === videoId)
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % feedVideos.value.length : 0
+  const nextVideo = feedVideos.value[nextIndex]
+
+  if (!nextVideo) {
+    return
+  }
+
+  activateVideo(nextVideo.id, nextIndex)
+  if (nextVideo.id === videoId) {
+    playVideoFromStart(videoId)
   }
 }
 
@@ -386,6 +445,21 @@ function clearPendingSingleTap() {
   }
 }
 
+function getRandomNextIndex() {
+  if (feedVideos.value.length <= 1) {
+    return 0
+  }
+
+  const currentIndex = playerStore.currentIndex
+  let nextIndex = currentIndex
+
+  while (nextIndex === currentIndex) {
+    nextIndex = Math.floor(Math.random() * feedVideos.value.length)
+  }
+
+  return nextIndex
+}
+
 function toggleLike(videoId: string) {
   libraryStore.toggleLike(videoId)
 }
@@ -487,6 +561,7 @@ function goToLibrary() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 24rpx;
 }
 
 .video-topbar__tag,

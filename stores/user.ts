@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { STORAGE_KEYS } from '../constants/storage'
+import { DEFAULT_CATEGORY_ID } from '../repositories/library'
 import { getStorageItem, setStorageItem } from '../services/storage/kv'
 import { DEFAULT_THEME_ID, applyThemeChrome } from '../theme/presets'
 import type { GestureSettings, PlaybackMode, UserSettings } from '../types/domain'
@@ -9,6 +10,7 @@ const defaultSettings: UserSettings = {
   passcode: '',
   useBiometrics: false,
   theme: DEFAULT_THEME_ID,
+  playbackCategoryId: DEFAULT_CATEGORY_ID,
   playbackMode: 'sequential',
   likeWeight: 70,
   gestures: {
@@ -24,6 +26,7 @@ export const useUserStore = defineStore('user', () => {
   const passcode = ref(storedSettings.passcode || '')
   const useBiometrics = ref(Boolean(storedSettings.useBiometrics))
   const theme = ref(storedSettings.theme || DEFAULT_THEME_ID)
+  const playbackCategoryId = ref(storedSettings.playbackCategoryId)
   const playbackMode = ref<PlaybackMode>(storedSettings.playbackMode)
   const likeWeight = ref(storedSettings.likeWeight)
   const gestures = ref<GestureSettings>(storedSettings.gestures)
@@ -32,6 +35,7 @@ export const useUserStore = defineStore('user', () => {
     passcode: passcode.value,
     useBiometrics: useBiometrics.value,
     theme: theme.value,
+    playbackCategoryId: playbackCategoryId.value,
     playbackMode: playbackMode.value,
     likeWeight: likeWeight.value,
     gestures: gestures.value,
@@ -61,6 +65,11 @@ export const useUserStore = defineStore('user', () => {
     persistSettings()
   }
 
+  function setPlaybackCategory(value: string) {
+    playbackCategoryId.value = value || DEFAULT_CATEGORY_ID
+    persistSettings()
+  }
+
   function setLikeWeight(value: number) {
     likeWeight.value = Math.max(0, Math.min(100, Math.round(value)))
     persistSettings()
@@ -81,6 +90,7 @@ export const useUserStore = defineStore('user', () => {
     passcode,
     useBiometrics,
     theme,
+    playbackCategoryId,
     playbackMode,
     likeWeight,
     gestures,
@@ -88,6 +98,7 @@ export const useUserStore = defineStore('user', () => {
     setUnlocked,
     setUseBiometrics,
     setTheme,
+    setPlaybackCategory,
     setPlaybackMode,
     setLikeWeight,
     setGestureSetting,
@@ -99,6 +110,7 @@ function normalizeSettings(settings?: Partial<UserSettings> | null): UserSetting
     passcode: settings?.passcode || '',
     useBiometrics: Boolean(settings?.useBiometrics),
     theme: settings?.theme || DEFAULT_THEME_ID,
+    playbackCategoryId: settings?.playbackCategoryId || DEFAULT_CATEGORY_ID,
     playbackMode: settings?.playbackMode === 'random' ? 'random' : 'sequential',
     likeWeight: normalizeLikeWeight(settings?.likeWeight),
     gestures: {
