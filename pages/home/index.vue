@@ -1,17 +1,14 @@
 <template>
   <view :class="['home-page', 'mt-page', themeClass]" :style="homeInlineStyle">
-    <view v-if="!feedVideos.length" class="empty-shell">
-      <view class="empty-card glass-panel" :style="panelInlineStyle">
-        <text class="empty-tag" :style="accentStyle">HOME</text>
-        <text class="empty-title" :style="textPrimaryStyle">还没有可播放的视频</text>
-        <text class="empty-copy" :style="textSecondaryStyle">
-          先去素材库导入本地视频，随后回到 Home 页就能开始上下刷视频。
-        </text>
-        <view class="empty-action" :style="primaryActionStyle" @tap="goToLibrary">
-          <text class="empty-action__text">前往素材库</text>
-        </view>
-      </view>
-    </view>
+    <HomeEmptyState
+      v-if="!feedVideos.length"
+      :panel-style="panelInlineStyle"
+      :accent-style="accentStyle"
+      :text-primary-style="textPrimaryStyle"
+      :text-secondary-style="textSecondaryStyle"
+      :primary-action-style="primaryActionStyle"
+      @go-library="goToLibrary"
+    />
 
     <swiper
       v-else
@@ -33,11 +30,11 @@
             :src="video.localPath"
             :poster="video.posterPath || undefined"
             :show-center-play-btn="false"
-            :show-play-btn="true"
+            :show-play-btn="false"
             :controls="false"
             :loop="false"
             :muted="false"
-            :autoplay="video.id === activeVideoId"
+            :autoplay="video.id === activeVideoId && !isActiveVideoPaused"
             object-fit="contain"
             @timeupdate="handleTimeUpdate(video.id, $event)"
             @play="handleVideoPlay(video.id)"
@@ -52,78 +49,87 @@
             </text>
           </view>
 
-          <view class="video-side-actions">
-            <view class="side-button glass-panel" :style="sideButtonStyle" @tap.stop="toggleLike(video.id)">
-              <text class="side-button__icon">{{ video.isLiked ? '♥' : '♡' }}</text>
-              <text class="side-button__text" :style="textPrimaryStyle">{{ video.isLiked ? '已喜欢' : '喜欢' }}</text>
-            </view>
-            <view class="side-button glass-panel" :style="sideButtonStyle">
-              <text class="side-button__icon">▶</text>
-              <text class="side-button__text" :style="textPrimaryStyle">{{ video.playCount }}</text>
-            </view>
-            <view class="side-button glass-panel" :style="sideButtonStyle">
-              <text class="side-button__icon">评</text>
-              <text class="side-button__text" :style="textPrimaryStyle">{{ commentsForVideo(video.id).length }}</text>
-            </view>
+          <HomeActionRail
+            :liked="video.isLiked"
+            :play-count="video.playCount"
+            :comment-count="commentsForVideo(video.id).length"
+            :panel-style="sideButtonStyle"
+            :text-primary-style="textPrimaryStyle"
+            @toggle-like="toggleLike(video.id)"
+            @open-info="openSheet('info')"
+            @open-comments="openSheet('comments')"
+          />
+
+          <view v-if="video.id === activeVideoId && isActiveVideoPaused" class="pause-indicator glass-panel" :style="panelInlineStyle">
+            <text class="pause-indicator__icon">▶</text>
+            <text class="pause-indicator__label" :style="textPrimaryStyle">继续播放</text>
           </view>
 
-          <view class="video-bottom">
-            <view class="video-summary glass-panel" :style="summaryStyle">
-              <text class="video-category" :style="textPrimaryStyle">{{ categoryNameFor(video.categoryId) }}</text>
-              <text class="video-stats" :style="textSecondaryStyle">
-                时长 {{ formatDuration(video.duration) }} · 已观看 {{ formatWatchTime(video.totalWatchTime) }}
-              </text>
-              <text class="video-hint" :style="textMutedStyle">
-                {{ gestureHint }}
-              </text>
-            </view>
-
-            <view class="comment-panel glass-panel" :style="summaryStyle">
-              <text class="comment-panel__title" :style="textPrimaryStyle">我的评论</text>
-              <view v-if="commentsForVideo(video.id).length" class="comment-list">
-                <view
-                  v-for="comment in commentsForVideo(video.id).slice(-3)"
-                  :key="comment.id"
-                  class="comment-item"
-                >
-                  <text class="comment-item__time" :style="accentStyle">{{ formatCommentTime(comment.timestamp) }}</text>
-                  <text class="comment-item__content" :style="textPrimaryStyle">{{ comment.content }}</text>
-                </view>
-              </view>
-              <text v-else class="comment-empty" :style="textMutedStyle">还没有评论，发一条给未来再次刷到的自己。</text>
-
-              <view v-if="video.id === activeVideoId" class="comment-editor">
-                <input
-                  v-model="commentDraft"
-                  class="comment-input"
-                  :style="inputInlineStyle"
-                  maxlength="40"
-                  placeholder="写一句想在下次刷到时看到的话"
-                  placeholder-style="color: #8e8e93;"
-                  confirm-type="send"
-                  @confirm="submitComment"
-                />
-                <view class="comment-send" :style="primaryActionStyle" @tap="submitComment">
-                  <text class="comment-send__text">发送</text>
-                </view>
-              </view>
-            </view>
-          </view>
         </view>
       </swiper-item>
     </swiper>
+
+    <view v-if="activeSheet !== 'none'" class="sheet-mask" @tap="closeSheet" />
+    <view v-if="activeSheet !== 'none' && activeVideo" class="sheet-host">
+      <HomeInfoPanel
+        v-if="activeSheet === 'info'"
+        :category-name="categoryNameFor(activeVideo.categoryId)"
+        :stats-text="`时长 ${formatDuration(activeVideo.duration)} · 已观看 ${formatWatchTime(activeVideo.totalWatchTime)}`"
+        :hint="gestureHint"
+        :panel-style="summaryStyle"
+        :text-primary-style="textPrimaryStyle"
+        :text-secondary-style="textSecondaryStyle"
+        :text-muted-style="textMutedStyle"
+        @close="closeSheet"
+      />
+
+      <HomeCommentPanel
+        v-else
+        :active="Boolean(activeVideoId)"
+        :draft="commentDraft"
+        :comments="commentPreviewFor(activeVideo.id)"
+        :panel-style="summaryStyle"
+        :text-primary-style="textPrimaryStyle"
+        :text-secondary-style="textSecondaryStyle"
+        :text-muted-style="textMutedStyle"
+        :accent-style="accentStyle"
+        :input-style="inputInlineStyle"
+        :primary-action-style="primaryActionStyle"
+        @close="closeSheet"
+        @submit="submitComment"
+        @update:draft="commentDraft = $event"
+      />
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import HomeActionRail from '@/components/business/home/HomeActionRail.vue'
+import HomeCommentPanel from '@/components/business/home/HomeCommentPanel.vue'
+import HomeEmptyState from '@/components/business/home/HomeEmptyState.vue'
+import HomeInfoPanel from '@/components/business/home/HomeInfoPanel.vue'
+import {
+  buildHomeFeed,
+  formatCommentTime,
+  formatDuration,
+  formatWatchTime,
+  getGestureHint,
+  getPlaybackModeLabel,
+} from '@/composables/home/useHomeFeed'
+import {
+  setVideoPlaybackRate,
+  syncVideoPlayback,
+  toggleVideoPlayback,
+  videoDomId,
+} from '@/composables/home/useHomeVideoControl'
 import { useCommentStore } from '@/stores/comments'
 import { useLibraryStore } from '@/stores/library'
 import { usePlayerStore } from '@/stores/player'
 import { useUserStore } from '@/stores/user'
 import { getThemeOption } from '@/theme/presets'
-import type { PlaybackMode, VideoAsset } from '@/types/domain'
+import type { VideoAsset } from '@/types/domain'
 
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
@@ -139,28 +145,15 @@ const watchProgress = ref<Record<string, number>>({})
 const playedVideoIds = ref<string[]>([])
 const feedVideos = ref<VideoAsset[]>([])
 const lastTapState = ref<{ videoId: string; time: number } | null>(null)
+const pendingSingleTapTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const speedBoostVideoId = ref('')
+const activeSheet = ref<'none' | 'info' | 'comments'>('none')
+const isActiveVideoPaused = ref(false)
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
-const playbackModeLabel = computed(() => (playbackMode.value === 'random' ? '随机播放' : '顺序播放'))
-const gestureHint = computed(() => {
-  const hints: string[] = []
-
-  if (gestures.value.doubleTapLike) {
-    hints.push('双击可点赞')
-  }
-
-  if (gestures.value.longPressSpeed) {
-    hints.push('长按 2 倍速')
-  }
-
-  if (!hints.length) {
-    return '当前未启用快捷手势，可在设置页随时调整。'
-  }
-
-  return `当前支持${hints.join('，')}。`
-})
+const playbackModeLabel = computed(() => getPlaybackModeLabel(playbackMode.value))
+const gestureHint = computed(() => getGestureHint(gestures.value))
 const homeInlineStyle = computed(() => ({
   background: activeTheme.value.homeBackground,
   color: activeTheme.value.textPrimary,
@@ -196,15 +189,20 @@ const primaryActionStyle = computed(() => ({
   background: activeTheme.value.primary,
   border: `1rpx solid ${activeTheme.value.primary}`,
 }))
+const activeVideo = computed(() => feedVideos.value.find((video) => video.id === activeVideoId.value) || null)
+const feedSignature = computed(() =>
+  videos.value
+    .map((video) => `${video.id}:${video.isLiked ? 1 : 0}:${video.playCount}:${video.createdAt}`)
+    .join('|'),
+)
 
 watch(
-  [videos, playbackMode, likeWeight],
+  [feedSignature, playbackMode, likeWeight],
   () => {
-    rebuildFeed()
+    feedVideos.value = buildHomeFeed(videos.value, playbackMode.value, likeWeight.value)
   },
   {
     immediate: true,
-    deep: true,
   },
 )
 
@@ -221,7 +219,9 @@ watch(
       nextVideos[0]
 
     const nextIndex = nextVideos.findIndex((video) => video.id === currentVideo.id)
-    activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
+    if (!playerStore.activeVideoId || playerStore.currentIndex !== nextIndex) {
+      activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
+    }
   },
   {
     immediate: true,
@@ -236,18 +236,10 @@ watch(
     }
 
     await nextTick()
-    syncVideoPlayback(videoId)
+    syncVideoPlayback(feedVideos.value, videoId)
+    isActiveVideoPaused.value = false
   },
 )
-
-function rebuildFeed() {
-  const nextVideos =
-    playbackMode.value === 'random'
-      ? buildRandomFeed(videos.value, likeWeight.value)
-      : buildSequentialFeed(videos.value)
-
-  feedVideos.value = nextVideos
-}
 
 function activateVideo(videoId: string, index: number) {
   playerStore.setActiveVideo(videoId, index)
@@ -255,6 +247,10 @@ function activateVideo(videoId: string, index: number) {
     ...watchProgress.value,
     [videoId]: 0,
   }
+  isActiveVideoPaused.value = false
+  activeSheet.value = 'none'
+  clearPendingSingleTap()
+  speedBoostVideoId.value = ''
 
   if (!playedVideoIds.value.includes(videoId)) {
     playedVideoIds.value = [...playedVideoIds.value, videoId]
@@ -278,7 +274,8 @@ function handleVideoPlay(videoId: string) {
   const index = feedVideos.value.findIndex((video) => video.id === videoId)
 
   if (index >= 0) {
-    activateVideo(videoId, index)
+    playerStore.setActiveVideo(videoId, index)
+    isActiveVideoPaused.value = false
   }
 }
 
@@ -310,7 +307,12 @@ function handleTimeUpdate(
 }
 
 function handleStageTap(videoId: string) {
+  if (videoId !== activeVideoId.value) {
+    return
+  }
+
   if (!gestures.value.doubleTapLike) {
+    togglePause(videoId)
     return
   }
 
@@ -318,26 +320,30 @@ function handleStageTap(videoId: string) {
   const lastTap = lastTapState.value
 
   if (lastTap && lastTap.videoId === videoId && now - lastTap.time < 260) {
-    toggleLike(videoId)
+    clearPendingSingleTap()
     lastTapState.value = null
+    toggleLike(videoId)
     return
   }
 
-  lastTapState.value = {
-    videoId,
-    time: now,
-  }
+  lastTapState.value = { videoId, time: now }
+  clearPendingSingleTap()
+  pendingSingleTapTimer.value = setTimeout(() => {
+    togglePause(videoId)
+    lastTapState.value = null
+    pendingSingleTapTimer.value = null
+  }, 260)
 }
 
 function handleStageLongPress(videoId: string) {
-  if (!gestures.value.longPressSpeed || videoId !== activeVideoId.value) {
+  if (!gestures.value.longPressSpeed || videoId !== activeVideoId.value || isActiveVideoPaused.value) {
     return
   }
 
   speedBoostVideoId.value = videoId
 
   try {
-    uni.createVideoContext(videoDomId(videoId)).playbackRate(2)
+    setVideoPlaybackRate(videoId, 2)
   } catch (error) {
     console.warn('Failed to enable speed boost', error)
   }
@@ -351,9 +357,32 @@ function handleStageTouchEnd(videoId: string) {
   speedBoostVideoId.value = ''
 
   try {
-    uni.createVideoContext(videoDomId(videoId)).playbackRate(1)
+    setVideoPlaybackRate(videoId, 1)
   } catch (error) {
     console.warn('Failed to reset speed boost', error)
+  }
+}
+
+function togglePause(videoId: string) {
+  try {
+    isActiveVideoPaused.value = toggleVideoPlayback(videoId, isActiveVideoPaused.value)
+  } catch (error) {
+    console.warn('Failed to toggle playback', error)
+  }
+}
+
+function openSheet(type: 'info' | 'comments') {
+  activeSheet.value = type
+}
+
+function closeSheet() {
+  activeSheet.value = 'none'
+}
+
+function clearPendingSingleTap() {
+  if (pendingSingleTapTimer.value) {
+    clearTimeout(pendingSingleTapTimer.value)
+    pendingSingleTapTimer.value = null
   }
 }
 
@@ -387,6 +416,16 @@ function commentsForVideo(videoId: string) {
   return commentStore.getCommentsByVideoId(videoId)
 }
 
+function commentPreviewFor(videoId: string) {
+  return commentsForVideo(videoId)
+    .slice(-3)
+    .map((comment) => ({
+      id: comment.id,
+      timeLabel: formatCommentTime(comment.timestamp),
+      content: comment.content,
+    }))
+}
+
 function categoryNameFor(categoryId: string) {
   return categories.value.find((category) => category.id === categoryId)?.name || '全部'
 }
@@ -402,72 +441,10 @@ function activeIndexLabel(videoId: string) {
   return `${index + 1} / ${total}`
 }
 
-function formatDuration(duration: number) {
-  const totalSeconds = Math.max(0, Math.round(duration))
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
-
-function formatWatchTime(seconds: number) {
-  if (seconds < 60) {
-    return `${Math.round(seconds)} 秒`
-  }
-
-  return `${(seconds / 60).toFixed(1)} 分钟`
-}
-
-function formatCommentTime(seconds: number) {
-  const safeSeconds = Math.max(0, Math.round(seconds))
-  const minutes = Math.floor(safeSeconds / 60)
-  const restSeconds = safeSeconds % 60
-
-  return `${minutes}:${String(restSeconds).padStart(2, '0')}`
-}
-
 function goToLibrary() {
   uni.switchTab({
     url: '/pages/library/index',
   })
-}
-
-function syncVideoPlayback(activeId: string) {
-  feedVideos.value.forEach((video) => {
-    const context = uni.createVideoContext(videoDomId(video.id))
-
-    if (video.id === activeId) {
-      context.seek(0)
-      context.playbackRate(1)
-      context.play()
-      return
-    }
-
-    context.pause()
-    context.playbackRate(1)
-  })
-
-  speedBoostVideoId.value = ''
-}
-
-function videoDomId(videoId: string) {
-  return `home-video-${videoId}`
-}
-
-function buildSequentialFeed(source: VideoAsset[]) {
-  return [...source].sort((left, right) => right.createdAt - left.createdAt)
-}
-
-function buildRandomFeed(source: VideoAsset[], weight: number) {
-  return [...source].sort((left, right) => scoreVideo(right, weight) - scoreVideo(left, weight))
-}
-
-function scoreVideo(video: VideoAsset, weight: number) {
-  const likedBoost = video.isLiked ? weight / 18 : 0
-  const freshnessBoost = Math.max(0, 8 - video.playCount * 0.7)
-  const watchBoost = Math.min(video.totalWatchTime / 12, 4)
-
-  return Math.random() * 10 + likedBoost + freshnessBoost + watchBoost
 }
 </script>
 
@@ -475,56 +452,6 @@ function scoreVideo(video: VideoAsset, weight: number) {
 .home-page {
   min-height: 100vh;
   background: var(--mt-home-background);
-}
-
-.empty-shell {
-  display: flex;
-  min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  padding: 48rpx 40rpx;
-}
-
-.empty-card {
-  width: 100%;
-  padding: 40rpx 36rpx;
-  border-radius: var(--mt-radius-card);
-}
-
-.empty-tag {
-  display: block;
-  font-size: 24rpx;
-  letter-spacing: 0.18em;
-}
-
-.empty-title {
-  display: block;
-  margin-top: 18rpx;
-  font-size: 48rpx;
-  font-weight: 700;
-}
-
-.empty-copy {
-  display: block;
-  margin-top: 18rpx;
-  font-size: 28rpx;
-  line-height: 1.7;
-}
-
-.empty-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 220rpx;
-  margin-top: 28rpx;
-  padding: 22rpx 30rpx;
-  border-radius: 9999rpx;
-}
-
-.empty-action__text {
-  color: #08110c;
-  font-size: 24rpx;
-  font-weight: 700;
 }
 
 .video-swiper,
@@ -567,136 +494,42 @@ function scoreVideo(video: VideoAsset, weight: number) {
   font-size: 24rpx;
 }
 
-.video-side-actions {
+.pause-indicator {
   position: absolute;
-  right: 22rpx;
-  bottom: 320rpx;
+  left: 50%;
+  top: 50%;
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  align-items: center;
+  justify-content: center;
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 9999rpx;
+  transform: translate(-50%, -50%);
 }
 
-.side-button {
-  width: 120rpx;
-  padding: 18rpx 12rpx;
-  border-radius: 26rpx;
-  text-align: center;
-}
-
-.side-button__icon {
-  display: block;
+.pause-indicator__icon {
   color: #fff;
-  font-size: 32rpx;
+  font-size: 54rpx;
   line-height: 1;
 }
 
-.side-button__text {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 20rpx;
-}
-
-.video-bottom {
-  position: absolute;
-  left: 20rpx;
-  right: 20rpx;
-  bottom: calc(28rpx + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-}
-
-.video-summary,
-.comment-panel {
-  padding: 26rpx;
-  border-radius: 28rpx;
-}
-
-.video-category {
-  display: block;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
-.video-stats {
-  display: block;
-  margin-top: 10rpx;
-  font-size: 24rpx;
-}
-
-.video-hint {
-  display: block;
+.pause-indicator__label {
   margin-top: 12rpx;
   font-size: 22rpx;
-  line-height: 1.6;
 }
 
-.comment-panel__title {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 700;
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
 }
 
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-  margin-top: 14rpx;
-}
-
-.comment-item {
-  display: flex;
-  gap: 14rpx;
-  align-items: flex-start;
-}
-
-.comment-item__time {
-  min-width: 68rpx;
-  font-size: 22rpx;
-  font-weight: 700;
-}
-
-.comment-item__content {
-  flex: 1;
-  min-width: 0;
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-
-.comment-empty {
-  display: block;
-  margin-top: 14rpx;
-  font-size: 22rpx;
-}
-
-.comment-editor {
-  display: flex;
-  gap: 14rpx;
-  align-items: center;
-  margin-top: 18rpx;
-}
-
-.comment-input {
-  flex: 1;
-  min-height: 84rpx;
-  box-sizing: border-box;
-  padding: 0 24rpx;
-  border-radius: 22rpx;
-  font-size: 26rpx;
-}
-
-.comment-send {
-  display: flex;
-  min-width: 136rpx;
-  min-height: 84rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 22rpx;
-}
-
-.comment-send__text {
-  color: #08110c;
-  font-size: 24rpx;
-  font-weight: 700;
+.sheet-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
 }
 </style>
