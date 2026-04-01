@@ -4,7 +4,7 @@
       <text class="eyebrow" :style="accentStyle">LIBRARY</text>
       <text class="title" :style="textPrimaryStyle">素材库</text>
       <text class="description" :style="textSecondaryStyle">
-        先完成分类管理、本地视频导入和基础元数据落盘。
+        先完成分类管理和本地视频导入，再在分类里像相册一样整理所有视频。
       </text>
     </view>
 
@@ -12,7 +12,7 @@
       <view class="hero-copy">
         <text class="hero-title" :style="textPrimaryStyle">当前已收纳 {{ totalVideoCount }} 个视频</text>
         <text class="hero-description" :style="textSecondaryStyle">
-          先从“未分类”开始导入，后续再逐步整理到不同主题分类。
+          从“全部”或自定义分类开始导入，后续可在分类相册里查看详情、复制和移动视频。
         </text>
         <text class="hero-meta" :style="textMutedStyle">{{ storageSummaryText }}</text>
       </view>
@@ -29,7 +29,7 @@
     <view v-if="storageUsage.warning" class="storage-alert glass-panel" :style="warningPanelStyle">
       <text class="storage-alert__title">本地存储空间接近上限</text>
       <text class="storage-alert__copy" :style="textSecondaryStyle">
-        当前已使用 {{ formatReadableBytes(storageUsage.usedBytes) }}，建议分批导入，避免触发小程序沙盒容量问题。
+        当前已保存 {{ formatReadableBytes(storageUsage.usedBytes) }}，建议及时整理分类或减少重复导入。
       </text>
     </view>
 
@@ -39,11 +39,11 @@
     </view>
 
     <view v-if="!categories.length" class="empty-state glass-panel" :style="panelInlineStyle">
-      <text class="empty-title" :style="textPrimaryStyle">还没有可用分类</text>
-      <text class="empty-copy" :style="textSecondaryStyle">先创建一个分类，再开始导入本地视频。</text>
+      <text class="empty-title" :style="textPrimaryStyle">还没有分类</text>
+      <text class="empty-copy" :style="textSecondaryStyle">先创建一个分类，然后往里面导入视频。</text>
       <view class="empty-actions">
         <view class="action action--primary" :style="primaryActionStyle" @tap="openCreateCategory">
-          <text class="action-text action-text--primary">立即创建分类</text>
+          <text class="action-text action-text--primary">创建分类</text>
         </view>
       </view>
     </view>
@@ -54,6 +54,7 @@
         :key="category.id"
         class="category-card glass-panel"
         :style="panelInlineStyle"
+        @tap="openCategoryGallery(category)"
       >
         <view class="category-cover" :style="buildCategoryCoverStyle(category)">
           <text v-if="!category.coverPath" class="category-cover__fallback">{{ category.name.slice(0, 2) }}</text>
@@ -68,20 +69,16 @@
               v-if="category.id !== DEFAULT_CATEGORY_ID"
               class="category-more"
               :style="secondaryActionStyle"
-              @tap="openCategoryActions(category)"
+              @tap.stop="openCategoryActions(category)"
             >
               <text class="category-more__text" :style="textMutedStyle">管理</text>
             </view>
           </view>
           <text class="category-note" :style="textSecondaryStyle">
-            {{
-              category.videoCount
-                ? '分类卡片已具备基础元数据展示能力。'
-                : '当前为空，可直接向该分类导入视频。'
-            }}
+            {{ category.videoCount ? '点开后可像相册一样查看此分类里的所有视频。' : '当前为空，可直接向该分类导入视频。' }}
           </text>
           <view class="category-actions">
-            <view class="action action--compact" :style="primaryActionStyle" @tap="handleImport(category.id)">
+            <view class="action action--compact" :style="primaryActionStyle" @tap.stop="handleImport(category.id)">
               <text class="action-text action-text--primary">导入到此分类</text>
             </view>
           </view>
@@ -90,15 +87,11 @@
     </view>
 
     <view v-if="showCategorySheet" class="sheet-mask" @tap="closeCategorySheet" />
-
-    <view
-      :class="['sheet-panel', showCategorySheet ? 'sheet-panel--open' : '']"
-      :style="sheetInlineStyle"
-    >
+    <view :class="['sheet-panel', showCategorySheet ? 'sheet-panel--open' : '']" :style="sheetInlineStyle">
       <view class="sheet-handle" />
       <view class="sheet-header">
         <text class="sheet-title" :style="textPrimaryStyle">{{ sheetTitle }}</text>
-        <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">取消</text>
+        <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">关闭</text>
       </view>
 
       <view v-if="sheetMode === 'form'" class="sheet-body">
@@ -114,7 +107,7 @@
           confirm-type="done"
           @confirm="submitCategoryForm"
         />
-        <text class="sheet-hint" :style="textMutedStyle">例如：旅行、音乐、练习素材</text>
+        <text class="sheet-hint" :style="textMutedStyle">例如：旅行、音乐、收藏、练习素材</text>
       </view>
 
       <view v-else class="sheet-menu">
@@ -123,7 +116,7 @@
         </view>
         <view class="sheet-menu__item sheet-menu__item--danger" @tap="confirmDeleteCategory">
           <text class="sheet-menu__text sheet-menu__text--danger">删除分类</text>
-          <text class="sheet-menu__hint" :style="textMutedStyle">分类内视频将转移到未分类</text>
+          <text class="sheet-menu__hint" :style="textMutedStyle">分类中的视频会自动转移到“全部”。</text>
         </view>
       </view>
 
@@ -133,6 +126,38 @@
         </view>
       </view>
     </view>
+
+    <CategoryGallerySheet
+      :open="showGallerySheet"
+      :title="activeCategory?.name || '分类相册'"
+      :subtitle="gallerySubtitle"
+      :videos="activeCategoryVideos"
+      :sheet-style="sheetInlineStyle"
+      :card-style="panelInlineStyle"
+      :text-primary-style="textPrimaryStyle"
+      :text-secondary-style="textSecondaryStyle"
+      :text-muted-style="textMutedStyle"
+      :primary-action-style="primaryActionStyle"
+      :duration-badge-style="durationBadgeStyle"
+      @close="closeGallerySheet"
+      @import="handleGalleryImport"
+      @select-video="openVideoDetail"
+    />
+
+    <LibraryVideoDetailSheet
+      :open="showVideoDetailSheet"
+      :video="activeVideo"
+      :category-name="activeCategory?.name || '全部'"
+      :sheet-style="sheetInlineStyle"
+      :card-style="panelInlineStyle"
+      :text-primary-style="textPrimaryStyle"
+      :text-muted-style="textMutedStyle"
+      :primary-action-style="primaryActionStyle"
+      :secondary-action-style="secondaryActionStyle"
+      @close="closeVideoDetailSheet"
+      @copy="startVideoTransfer('copy')"
+      @move="startVideoTransfer('move')"
+    />
   </view>
 </template>
 
@@ -140,6 +165,8 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
+import CategoryGallerySheet from '@/components/business/library/CategoryGallerySheet.vue'
+import LibraryVideoDetailSheet from '@/components/business/library/LibraryVideoDetailSheet.vue'
 import { DEFAULT_CATEGORY_ID } from '@/repositories/library'
 import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
@@ -152,10 +179,11 @@ import {
 import { chooseVideos, normalizeChosenVideos } from '@/services/platform/media'
 import { getThemeOption } from '@/theme/presets'
 import type { SavedFileUsageSummary } from '@/services/platform/file-system'
-import type { Category } from '@/types/domain'
+import type { Category, VideoAsset } from '@/types/domain'
 
 type CategorySheetMode = 'form' | 'actions'
 type CategoryFormMode = 'create' | 'rename'
+type VideoTransferMode = 'copy' | 'move'
 
 const DEFAULT_IMPORT_CATEGORY_ID = DEFAULT_CATEGORY_ID
 
@@ -177,6 +205,9 @@ const storageUsage = ref<SavedFileUsageSummary>({
   limitBytes: 0,
   warning: false,
 })
+const showGallerySheet = ref(false)
+const showVideoDetailSheet = ref(false)
+const activeVideoId = ref('')
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -212,6 +243,10 @@ const inputInlineStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
   background: activeTheme.value.themeOptionBackground,
 }))
+const durationBadgeStyle = computed(() => ({
+  color: '#ffffff',
+  background: 'rgba(8, 8, 8, 0.68)',
+}))
 const warningPanelStyle = computed(() => ({
   background: 'rgba(255, 91, 87, 0.12)',
   border: '1rpx solid rgba(255, 91, 87, 0.24)',
@@ -219,7 +254,7 @@ const warningPanelStyle = computed(() => ({
 }))
 const storageSummaryText = computed(() => {
   if (!storageUsage.value.available) {
-    return '当前环境未返回已保存文件列表，导入后请在微信开发者工具里再验一次容量。'
+    return '当前未获取到本地存储统计，可继续导入并在微信开发者工具中观察容量。'
   }
 
   return `已保存 ${storageUsage.value.fileCount} 个文件，已用 ${formatReadableBytes(storageUsage.value.usedBytes)} / ${formatReadableBytes(storageUsage.value.limitBytes)}`
@@ -229,9 +264,16 @@ const sheetTitle = computed(() => {
     return activeCategory.value?.name || '分类管理'
   }
 
-  return formMode.value === 'create' ? '新建分类' : '重命名分类'
+  return formMode.value === 'create' ? '创建分类' : '重命名分类'
 })
-const sheetSubmitLabel = computed(() => (formMode.value === 'create' ? '保存分类' : '确认修改'))
+const sheetSubmitLabel = computed(() => (formMode.value === 'create' ? '保存分类' : '更新分类'))
+const activeCategoryVideos = computed(() =>
+  activeCategory.value ? libraryStore.getVideosByCategory(activeCategory.value.id) : [],
+)
+const activeVideo = computed(
+  () => activeCategoryVideos.value.find((video) => video.id === activeVideoId.value) || null,
+)
+const gallerySubtitle = computed(() => `${activeCategoryVideos.value.length} 个视频 · 点击封面查看详情`)
 
 onShow(() => {
   void refreshStorageUsage()
@@ -292,7 +334,7 @@ function submitCategoryForm() {
     closeCategorySheet()
   } catch (error) {
     uni.showToast({
-      title: error instanceof Error ? error.message : '操作失败',
+      title: error instanceof Error ? error.message : '分类保存失败',
       icon: 'none',
     })
   }
@@ -307,7 +349,7 @@ function confirmDeleteCategory() {
 
   uni.showModal({
     title: '删除分类',
-    content: `删除“${category.name}”后，分类内视频会转移到未分类。`,
+    content: `删除“${category.name}”后，该分类中的视频会自动转移到“全部”。`,
     confirmColor: '#ff5e57',
     success: ({ confirm }) => {
       if (!confirm) {
@@ -323,12 +365,34 @@ function confirmDeleteCategory() {
         closeCategorySheet()
       } catch (error) {
         uni.showToast({
-          title: error instanceof Error ? error.message : '删除失败',
+          title: error instanceof Error ? error.message : '删除分类失败',
           icon: 'none',
         })
       }
     },
   })
+}
+
+function openCategoryGallery(category: Category) {
+  activeCategory.value = category
+  activeVideoId.value = ''
+  showGallerySheet.value = true
+}
+
+function closeGallerySheet() {
+  showGallerySheet.value = false
+  showVideoDetailSheet.value = false
+  activeVideoId.value = ''
+}
+
+function openVideoDetail(videoId: string) {
+  activeVideoId.value = videoId
+  showVideoDetailSheet.value = true
+}
+
+function closeVideoDetailSheet() {
+  showVideoDetailSheet.value = false
+  activeVideoId.value = ''
 }
 
 async function importToCategory(categoryId: string) {
@@ -347,7 +411,7 @@ async function importToCategory(categoryId: string) {
       storageUsage.value.usedBytes + estimatedImportSize > storageUsage.value.limitBytes
     ) {
       uni.showToast({
-        title: '空间不足，请先减少导入数量',
+        title: '存储空间不足，建议先整理本地素材',
         icon: 'none',
       })
       return
@@ -379,7 +443,7 @@ async function importToCategory(categoryId: string) {
     }
 
     uni.showToast({
-      title: '导入失败，请重试',
+      title: '导入视频失败',
       icon: 'none',
     })
   }
@@ -390,9 +454,66 @@ function handleQuickImport() {
 }
 
 function handleImport(categoryId: string) {
-  return () => {
-    void importToCategory(categoryId)
+  void importToCategory(categoryId)
+}
+
+function handleGalleryImport() {
+  if (!activeCategory.value) {
+    return
   }
+
+  void importToCategory(activeCategory.value.id)
+}
+
+function startVideoTransfer(mode: VideoTransferMode) {
+  const video = activeVideo.value
+
+  if (!video) {
+    return
+  }
+
+  const destinationCategories = categories.value.filter((category) => category.id !== video.categoryId)
+
+  if (!destinationCategories.length) {
+    uni.showToast({
+      title: '没有可用的目标分类',
+      icon: 'none',
+    })
+    return
+  }
+
+  uni.showActionSheet({
+    itemList: destinationCategories.map((category) => category.name),
+    success: ({ tapIndex }) => {
+      const targetCategory = destinationCategories[tapIndex]
+
+      if (!targetCategory) {
+        return
+      }
+
+      try {
+        if (mode === 'copy') {
+          libraryStore.copyVideoToCategory(video.id, targetCategory.id)
+          uni.showToast({
+            title: `已复制到${targetCategory.name}`,
+            icon: 'success',
+          })
+        } else {
+          libraryStore.moveVideoToCategory(video.id, targetCategory.id)
+          uni.showToast({
+            title: `已移动到${targetCategory.name}`,
+            icon: 'success',
+          })
+          closeVideoDetailSheet()
+        }
+      } catch (error) {
+        uni.showToast({
+          title: error instanceof Error ? error.message : '整理视频失败',
+          icon: 'none',
+        })
+      }
+    },
+  })
 }
 
 function buildCategoryCoverStyle(category: Category) {

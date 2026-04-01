@@ -141,6 +141,26 @@ export function moveVideosToCategory(videos: VideoAsset[], fromCategoryId: strin
   )
 }
 
+export function moveVideoAssetToCategory(video: VideoAsset, toCategoryId: string): VideoAsset {
+  return {
+    ...video,
+    categoryId: toCategoryId,
+    updatedAt: Date.now(),
+  }
+}
+
+export function cloneVideoAssetToCategory(video: VideoAsset, toCategoryId: string): VideoAsset {
+  const now = Date.now()
+
+  return {
+    ...video,
+    id: createId('video_copy'),
+    categoryId: toCategoryId,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 export function syncCategoryStats(categories: Category[], videos: VideoAsset[]) {
   return categories.map((category) => {
     const categoryVideos = videos.filter((video) => video.categoryId === category.id)

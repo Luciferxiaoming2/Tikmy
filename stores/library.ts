@@ -3,10 +3,12 @@ import { defineStore } from 'pinia'
 import { STORAGE_KEYS } from '@/constants/storage'
 import {
   assertUniqueCategoryName,
+  cloneVideoAssetToCategory,
   createCategoryEntity,
   createVideoAssets,
   DEFAULT_CATEGORY_ID,
   ensureBaseCategories,
+  moveVideoAssetToCategory,
   moveVideosToCategory,
   renameCategoryEntity,
   syncCategoryStats as buildCategoryStats,
@@ -184,6 +186,59 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  function getVideosByCategory(categoryId: string) {
+    return videos.value
+      .filter((video) => video.categoryId === categoryId)
+      .sort((left, right) => right.createdAt - left.createdAt)
+  }
+
+  function moveVideoToCategory(videoId: string, toCategoryId: string) {
+    const targetCategory = categories.value.find((category) => category.id === toCategoryId)
+
+    if (!targetCategory) {
+      throw new Error('目标分类不存在')
+    }
+
+    const currentVideo = videos.value.find((video) => video.id === videoId)
+
+    if (!currentVideo) {
+      throw new Error('视频不存在')
+    }
+
+    if (currentVideo.categoryId === toCategoryId) {
+      return currentVideo
+    }
+
+    videos.value = videos.value.map((video) =>
+      video.id === videoId ? moveVideoAssetToCategory(video, toCategoryId) : video,
+    )
+    persistVideos()
+    syncCategoryStats()
+
+    return videos.value.find((video) => video.id === videoId) || currentVideo
+  }
+
+  function copyVideoToCategory(videoId: string, toCategoryId: string) {
+    const targetCategory = categories.value.find((category) => category.id === toCategoryId)
+
+    if (!targetCategory) {
+      throw new Error('目标分类不存在')
+    }
+
+    const currentVideo = videos.value.find((video) => video.id === videoId)
+
+    if (!currentVideo) {
+      throw new Error('视频不存在')
+    }
+
+    const copiedVideo = cloneVideoAssetToCategory(currentVideo, toCategoryId)
+    videos.value = [copiedVideo, ...videos.value]
+    persistVideos()
+    syncCategoryStats()
+
+    return copiedVideo
+  }
+
   const totalVideoCount = computed(() => videos.value.length)
 
   ensureDefaultCategory()
@@ -200,6 +255,9 @@ export const useLibraryStore = defineStore('library', () => {
     toggleLike,
     incrementPlayCount,
     addWatchTime,
+    getVideosByCategory,
+    moveVideoToCategory,
+    copyVideoToCategory,
     syncCategoryStats,
   }
 })
