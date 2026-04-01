@@ -14,6 +14,7 @@
       v-else
       class="video-swiper"
       vertical
+      circular
       :current="playerStore.currentIndex"
       @change="handleSwiperChange"
     >
@@ -31,15 +32,17 @@
             :poster="video.posterPath || undefined"
             :show-center-play-btn="false"
             :show-play-btn="false"
+            :show-fullscreen-btn="false"
             :controls="false"
             :loop="false"
             :muted="false"
-            :autoplay="video.id === activeVideoId && !isActiveVideoPaused"
+            :autoplay="false"
             object-fit="contain"
             @timeupdate="handleTimeUpdate(video.id, $event)"
             @play="handleVideoPlay(video.id)"
             @ended="handleVideoEnded(video.id)"
             @error="handleVideoError(video)"
+            @fullscreenchange="handleFullscreenChange"
           />
 
           <view class="video-scrim" />
@@ -47,7 +50,7 @@
           <view class="video-topbar">
             <text class="video-topbar__tag" :style="accentStyle">Private Home</text>
             <text class="video-topbar__meta" :style="textMutedStyle">
-              {{ playbackCategoryLabel }} · {{ playbackModeLabel }} · {{ activeIndexLabel(video.id) }}
+              {{ playbackCategoryLabel }} 闂?{{ playbackModeLabel }} 闂?{{ activeIndexLabel(video.id) }}
             </text>
           </view>
 
@@ -64,12 +67,11 @@
 
           <view
             v-if="video.id === activeVideoId && shouldShowFullscreenButton(video)"
-            class="fullscreen-trigger glass-panel"
-            :style="panelInlineStyle"
+            class="fullscreen-trigger"
             @tap.stop="handleFullscreen(video.id)"
           >
-            <text class="fullscreen-trigger__icon">⤢</text>
-            <text class="fullscreen-trigger__text" :style="textPrimaryStyle">全屏观看</text>
+            <text class="fullscreen-trigger__icon">[]</text>
+            <text class="fullscreen-trigger__text">全屏观看</text>
           </view>
 
           <view
@@ -170,12 +172,14 @@ const activeSheet = ref<'none' | 'info' | 'comments'>('none')
 const isActiveVideoPaused = ref(false)
 const isPageVisible = ref(false)
 const compatibilityPromptedVideoIds = ref<string[]>([])
+const playbackSyncToken = ref(0)
+const isVideoFullscreen = ref(false)
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
 const playbackModeLabel = computed(() => getPlaybackModeLabel(playbackMode.value))
 const playbackCategoryLabel = computed(
-  () => categories.value.find((category) => category.id === playbackCategoryId.value)?.name || '全部',
+  () => categories.value.find((category) => category.id === playbackCategoryId.value)?.name || 'All',
 )
 const gestureHint = computed(() => getGestureHint(gestures.value))
 const homeInlineStyle = computed(() => ({
@@ -214,12 +218,18 @@ const primaryActionStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.primary}`,
 }))
 const activeVideo = computed(() => feedVideos.value.find((video) => video.id === activeVideoId.value) || null)
+const playbackTargets = computed(() =>
+  feedVideos.value.map((video) => ({
+    domId: videoDomId(video.id),
+    videoId: video.id,
+  })),
+)
 const infoStatsText = computed(() => {
   if (!activeVideo.value) {
     return ''
   }
 
-  return `时长 ${formatDuration(activeVideo.value.duration)} · 已观看 ${formatWatchTime(activeVideo.value.totalWatchTime)} · 播放 ${activeVideo.value.playCount} 次`
+  return `Duration ${formatDuration(activeVideo.value.duration)} | Watched ${formatWatchTime(activeVideo.value.totalWatchTime)} | Plays ${activeVideo.value.playCount}`
 })
 const feedSignature = computed(() =>
   videos.value
@@ -276,8 +286,16 @@ watch(
       return
     }
 
+    const token = playbackSyncToken.value + 1
+    playbackSyncToken.value = token
+
     await nextTick()
-    syncVideoPlayback(feedVideos.value, videoId)
+
+    if (token !== playbackSyncToken.value) {
+      return
+    }
+
+    syncVideoPlayback(playbackTargets.value, videoId)
     isActiveVideoPaused.value = false
   },
 )
@@ -304,10 +322,11 @@ onShow(() => {
 
 onHide(() => {
   isPageVisible.value = false
+  playbackSyncToken.value += 1
   clearPendingSingleTap()
   speedBoostVideoId.value = ''
   activeSheet.value = 'none'
-  pauseAllVideos(feedVideos.value)
+  pauseAllVideos(playbackTargets.value)
 })
 
 function activateVideo(videoId: string, index: number) {
@@ -363,7 +382,7 @@ function handleVideoEnded(videoId: string) {
 
     activateVideo(nextVideo.id, nextIndex)
     if (nextVideo.id === videoId) {
-      playVideoFromStart(videoId)
+      playVideoFromStart(videoDomId(videoId))
     }
     return
   }
@@ -378,7 +397,7 @@ function handleVideoEnded(videoId: string) {
 
   activateVideo(nextVideo.id, nextIndex)
   if (nextVideo.id === videoId) {
-    playVideoFromStart(videoId)
+    playVideoFromStart(videoDomId(videoId))
   }
 }
 
@@ -390,10 +409,10 @@ function handleVideoError(video: VideoAsset) {
   compatibilityPromptedVideoIds.value = [...compatibilityPromptedVideoIds.value, video.id]
 
   uni.showModal({
-    title: '播放兼容性提示',
+    title: 'Playback notice',
     content:
       video.importHint ||
-      '当前视频可能是微信小程序不完全支持的编码格式。若播放时只有声音没有画面，建议转为 H.264 编码的 MP4 后重新导入。',
+      'This video may use a codec that is not fully supported in WeChat Mini Program. If it plays audio without video, convert it to H.264 MP4 and import again.',
     showCancel: false,
   })
 }
@@ -462,7 +481,7 @@ function handleStageLongPress(videoId: string) {
   speedBoostVideoId.value = videoId
 
   try {
-    setVideoPlaybackRate(videoId, 2)
+    setVideoPlaybackRate(videoDomId(videoId), 2)
   } catch (error) {
     console.warn('Failed to enable speed boost', error)
   }
@@ -476,7 +495,7 @@ function handleStageTouchEnd(videoId: string) {
   speedBoostVideoId.value = ''
 
   try {
-    setVideoPlaybackRate(videoId, 1)
+    setVideoPlaybackRate(videoDomId(videoId), 1)
   } catch (error) {
     console.warn('Failed to reset speed boost', error)
   }
@@ -484,7 +503,7 @@ function handleStageTouchEnd(videoId: string) {
 
 function togglePause(videoId: string) {
   try {
-    isActiveVideoPaused.value = toggleVideoPlayback(videoId, isActiveVideoPaused.value)
+    isActiveVideoPaused.value = toggleVideoPlayback(videoDomId(videoId), isActiveVideoPaused.value)
   } catch (error) {
     console.warn('Failed to toggle playback', error)
   }
@@ -534,11 +553,11 @@ function shouldShowFullscreenButton(video: VideoAsset) {
 
 function handleFullscreen(videoId: string) {
   try {
-    requestVideoFullscreen(videoId)
+    requestVideoFullscreen(videoDomId(videoId))
   } catch (error) {
     console.warn('Failed to request fullscreen playback', error)
     uni.showToast({
-      title: '暂时无法进入全屏',
+      title: 'Devtools may be unstable. Please verify on a real device.',
       icon: 'none',
     })
   }
@@ -555,12 +574,12 @@ function submitComment() {
     commentStore.addComment(videoId, commentDraft.value, playerStore.currentTime)
     commentDraft.value = ''
     uni.showToast({
-      title: '评论已保存',
+      title: 'Comment saved',
       icon: 'success',
     })
   } catch (error) {
     uni.showToast({
-      title: error instanceof Error ? error.message : '评论保存失败',
+      title: error instanceof Error ? error.message : 'Failed to save comment',
       icon: 'none',
     })
   }
@@ -581,7 +600,7 @@ function commentPreviewFor(videoId: string) {
 }
 
 function categoryNameFor(categoryId: string) {
-  return categories.value.find((category) => category.id === categoryId)?.name || '全部'
+  return categories.value.find((category) => category.id === categoryId)?.name || 'All'
 }
 
 function activeIndexLabel(videoId: string) {
@@ -599,6 +618,36 @@ function goToLibrary() {
   uni.switchTab({
     url: '/pages/library/index',
   })
+}
+
+function handleFullscreenChange(
+  event: Event & {
+    detail?: {
+      fullScreen?: boolean
+      direction?: number
+    }
+  },
+) {
+  isVideoFullscreen.value = Boolean(event.detail?.fullScreen)
+
+  if (!isVideoFullscreen.value || !activeVideoId.value) {
+    return
+  }
+
+  const currentVideoId = activeVideoId.value
+  isActiveVideoPaused.value = false
+
+  setTimeout(() => {
+    if (!isVideoFullscreen.value || activeVideoId.value !== currentVideoId) {
+      return
+    }
+
+    try {
+      toggleVideoPlayback(videoDomId(currentVideoId), true)
+    } catch (error) {
+      console.warn('Failed to resume playback after entering fullscreen', error)
+    }
+  }, 80)
 }
 </script>
 
@@ -676,26 +725,34 @@ function goToLibrary() {
 
 .fullscreen-trigger {
   position: absolute;
-  left: 28rpx;
-  right: 132rpx;
-  bottom: 112rpx;
+  left: 50%;
+  bottom: 252rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12rpx;
-  min-height: 76rpx;
+  gap: 10rpx;
+  min-width: 188rpx;
+  height: 64rpx;
+  padding: 0 24rpx;
   border-radius: 9999rpx;
+  background: rgba(17, 17, 18, 0.82);
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.28);
+  transform: translateX(-50%);
+  backdrop-filter: blur(16px);
 }
 
 .fullscreen-trigger__icon {
-  color: #fff;
-  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 24rpx;
   line-height: 1;
 }
 
 .fullscreen-trigger__text {
-  font-size: 24rpx;
-  font-weight: 600;
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 22rpx;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .sheet-mask {

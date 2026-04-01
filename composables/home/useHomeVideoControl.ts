@@ -1,27 +1,43 @@
-import type { VideoAsset } from '@/types/domain'
-
-export function videoDomId(videoId: string) {
-  return `home-video-${videoId}`
+export interface VideoPlaybackTarget {
+  domId: string
+  videoId: string
 }
 
-export function syncVideoPlayback(videos: VideoAsset[], activeId: string) {
-  videos.forEach((video) => {
-    const context = uni.createVideoContext(videoDomId(video.id))
+export function videoDomId(id: string) {
+  return `home-video-${id}`
+}
 
-    if (video.id === activeId) {
+export function syncVideoPlayback(targets: VideoPlaybackTarget[], activeId: string) {
+  let activeTarget: VideoPlaybackTarget | null = null
+
+  targets.forEach((target) => {
+    const context = uni.createVideoContext(target.domId)
+    context.pause()
+    context.playbackRate(1)
+
+    if (target.videoId === activeId) {
+      activeTarget = target
+    }
+  })
+
+  if (!activeTarget) {
+    return
+  }
+
+  setTimeout(() => {
+    const context = uni.createVideoContext(activeTarget!.domId)
+    try {
       context.seek(0)
       context.playbackRate(1)
       context.play()
-      return
+    } catch {
+      // ignore transient play/pause race from the webview layer
     }
-
-    context.pause()
-    context.playbackRate(1)
-  })
+  }, 0)
 }
 
-export function toggleVideoPlayback(videoId: string, paused: boolean) {
-  const context = uni.createVideoContext(videoDomId(videoId))
+export function toggleVideoPlayback(domId: string, paused: boolean) {
+  const context = uni.createVideoContext(domId)
 
   if (paused) {
     context.play()
@@ -32,27 +48,27 @@ export function toggleVideoPlayback(videoId: string, paused: boolean) {
   return true
 }
 
-export function setVideoPlaybackRate(videoId: string, rate: number) {
-  uni.createVideoContext(videoDomId(videoId)).playbackRate(rate)
+export function setVideoPlaybackRate(domId: string, rate: number) {
+  uni.createVideoContext(domId).playbackRate(rate)
 }
 
-export function playVideoFromStart(videoId: string) {
-  const context = uni.createVideoContext(videoDomId(videoId))
+export function playVideoFromStart(domId: string) {
+  const context = uni.createVideoContext(domId)
   context.seek(0)
   context.playbackRate(1)
   context.play()
 }
 
-export function requestVideoFullscreen(videoId: string) {
-  const context = uni.createVideoContext(videoDomId(videoId))
+export function requestVideoFullscreen(domId: string) {
+  const context = uni.createVideoContext(domId)
   context.requestFullScreen({
     direction: 90,
   })
 }
 
-export function pauseAllVideos(videos: VideoAsset[]) {
-  videos.forEach((video) => {
-    const context = uni.createVideoContext(videoDomId(video.id))
+export function pauseAllVideos(targets: VideoPlaybackTarget[]) {
+  targets.forEach((target) => {
+    const context = uni.createVideoContext(target.domId)
     context.pause()
     context.playbackRate(1)
   })
