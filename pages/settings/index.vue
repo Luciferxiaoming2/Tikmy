@@ -4,54 +4,8 @@
       <text class="hero__eyebrow" :style="accentStyle">SETTINGS</text>
       <text class="hero__title" :style="textPrimaryStyle">播放设置</text>
       <text class="hero__copy" :style="textSecondaryStyle">
-        控制 Home 页的播放范围、顺序和交互偏好，优先保证刷视频时的稳定体验。
+        调整刷视频时的交互偏好、喜欢权重、备份恢复与主题表现。
       </text>
-      <view class="hero__chips">
-        <view class="hero-chip" :style="chipInlineStyle">
-          <text class="hero-chip__label" :style="textMutedStyle">播放分类</text>
-          <text class="hero-chip__value" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
-        </view>
-        <view class="hero-chip" :style="chipInlineStyle">
-          <text class="hero-chip__label" :style="textMutedStyle">播放模式</text>
-          <text class="hero-chip__value" :style="textPrimaryStyle">{{ playbackModeLabel }}</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="section">
-      <text class="section__title" :style="textPrimaryStyle">播放分类</text>
-      <text class="section__copy" :style="textSecondaryStyle">
-        先选播放范围，再决定顺序或随机。默认播放“全部”。
-      </text>
-      <view class="picker-card glass-panel" :style="[panelInlineStyle, activeCardStyle]" @tap="openCategoryPicker">
-        <view class="picker-card__main">
-          <text class="picker-card__title" :style="textPrimaryStyle">{{ playbackCategoryLabel }}</text>
-          <text class="picker-card__copy" :style="textSecondaryStyle">
-            {{ playbackCategoryMeta }}
-          </text>
-        </view>
-        <text class="picker-card__action" :style="textMutedStyle">选择</text>
-      </view>
-    </view>
-
-    <view class="section">
-      <text class="section__title" :style="textPrimaryStyle">播放模式</text>
-      <text class="section__copy" :style="textSecondaryStyle">
-        顺序模式播完当前分类后会从头循环；随机模式会在当前分类里随机抽取。
-      </text>
-      <view class="selection-grid">
-        <view
-          v-for="option in playbackModeOptions"
-          :key="option.value"
-          class="selection-card glass-panel"
-          :style="option.value === playbackMode ? [panelInlineStyle, activeCardStyle] : panelInlineStyle"
-          :data-mode="option.value"
-          @tap="handlePlaybackModeTap"
-        >
-          <text class="selection-card__title" :style="textPrimaryStyle">{{ option.label }}</text>
-          <text class="selection-card__copy" :style="textSecondaryStyle">{{ option.description }}</text>
-        </view>
-      </view>
     </view>
 
     <view class="section">
@@ -217,36 +171,6 @@
         </view>
       </view>
     </view>
-
-    <view v-if="isCategoryPickerOpen" class="sheet-mask" @tap="closeCategoryPicker" />
-    <view v-if="isCategoryPickerOpen" class="theme-sheet glass-panel" :style="sheetInlineStyle">
-      <view class="theme-sheet__header">
-        <view>
-          <text class="theme-sheet__title" :style="textPrimaryStyle">选择播放分类</text>
-          <text class="theme-sheet__subtitle" :style="textSecondaryStyle">
-            Home 页会只播放当前所选分类的视频。
-          </text>
-        </view>
-        <text class="theme-sheet__close" :style="textMutedStyle" @tap="closeCategoryPicker">关闭</text>
-      </view>
-
-      <scroll-view scroll-y class="theme-sheet__list theme-sheet__list--category">
-        <view
-          v-for="option in playbackCategoryRange"
-          :key="option.id"
-          class="theme-row"
-          :style="option.id === playbackCategoryId ? [themeOptionInlineStyle, activeBorderStyle] : themeOptionInlineStyle"
-          :data-category-id="option.id"
-          @tap="handlePlaybackCategoryTap"
-        >
-          <view class="theme-row__content">
-            <text class="theme-name" :style="textPrimaryStyle">{{ option.name }}</text>
-            <text class="theme-copy" :style="textSecondaryStyle">{{ option.videoCountLabel }}</text>
-          </view>
-          <text v-if="option.id === playbackCategoryId" class="theme-row__selected" :style="textPrimaryStyle">当前</text>
-        </view>
-      </scroll-view>
-    </view>
   </view>
 </template>
 
@@ -269,57 +193,22 @@ import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
 import { THEME_OPTIONS, getThemeOption } from '@/theme/presets'
 import type { ThemeId } from '@/theme/presets'
-import type { GestureSettings, PlaybackMode, VideoAsset } from '@/types/domain'
+import type { GestureSettings, VideoAsset } from '@/types/domain'
 
 const themeOptions = THEME_OPTIONS
-const playbackModeOptions: Array<{ value: PlaybackMode; label: string; description: string }> = [
-  {
-    value: 'sequential',
-    label: '顺序播放',
-    description: '按当前分类的视频顺序播放，播到最后一条后自动回到第一条继续循环。',
-  },
-  {
-    value: 'random',
-    label: '随机播放',
-    description: '只在当前分类内随机抽取视频，适合反复刷同一类素材时打散顺序。',
-  },
-]
 
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 const commentStore = useCommentStore()
 const { categories, videos } = storeToRefs(libraryStore)
 const { comments } = storeToRefs(commentStore)
-const { gestures, likeWeight, playbackCategoryId, playbackMode, theme, useBiometrics } = storeToRefs(userStore)
+const { gestures, likeWeight, playbackCategoryId, theme, useBiometrics } = storeToRefs(userStore)
 const isThemePickerOpen = ref(false)
-const isCategoryPickerOpen = ref(false)
 const backupBusyLabel = ref('')
 const backupStatus = ref('')
 const brokenVideoIds = ref<string[]>([])
 
-const playbackCategoryOptions = computed(() => categories.value)
-const playbackCategoryRange = computed(() =>
-  playbackCategoryOptions.value.map((option) => ({
-    id: option.id,
-    name: option.name,
-    videoCountLabel: `${option.videoCount} 个视频`,
-  })),
-)
 const activeTheme = computed(() => getThemeOption(theme.value))
-const playbackModeLabel = computed(
-  () => playbackModeOptions.find((option) => option.value === playbackMode.value)?.label || '顺序播放',
-)
-const playbackCategoryLabel = computed(
-  () => playbackCategoryOptions.value.find((option) => option.id === playbackCategoryId.value)?.name || '全部',
-)
-const playbackCategoryIndex = computed(() => {
-  const index = playbackCategoryOptions.value.findIndex((option) => option.id === playbackCategoryId.value)
-  return index >= 0 ? index : 0
-})
-const playbackCategoryMeta = computed(() => {
-  const option = playbackCategoryOptions.value[playbackCategoryIndex.value]
-  return option ? `${option.videoCount} 个视频` : '0 个视频'
-})
 const themeClass = computed(() => `theme--${theme.value}`)
 const pageInlineStyle = computed(() => ({
   background: activeTheme.value.pageBackground,
@@ -403,27 +292,6 @@ function handleGestureChange(event: Event) {
   }
 
   userStore.setGestureSetting(key, Boolean(detail?.value))
-}
-
-function openCategoryPicker() {
-  isCategoryPickerOpen.value = true
-}
-
-function closeCategoryPicker() {
-  isCategoryPickerOpen.value = false
-}
-
-function handlePlaybackCategoryTap(event: Event) {
-  const dataset = (
-    event as Event & { currentTarget?: { dataset?: { categoryId?: string } } }
-  ).currentTarget?.dataset
-  userStore.setPlaybackCategory(dataset?.categoryId || DEFAULT_CATEGORY_ID)
-  closeCategoryPicker()
-}
-
-function handlePlaybackModeTap(event: Event) {
-  const dataset = (event as Event & { currentTarget?: { dataset?: { mode?: PlaybackMode } } }).currentTarget?.dataset
-  userStore.setPlaybackMode(dataset?.mode === 'random' ? 'random' : 'sequential')
 }
 
 function toggleThemePicker() {
