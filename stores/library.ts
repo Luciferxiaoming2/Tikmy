@@ -114,6 +114,76 @@ export const useLibraryStore = defineStore('library', () => {
     return newVideos
   }
 
+  function toggleLike(videoId: string) {
+    let changed = false
+
+    videos.value = videos.value.map((video) => {
+      if (video.id !== videoId) {
+        return video
+      }
+
+      changed = true
+
+      return {
+        ...video,
+        isLiked: !video.isLiked,
+        updatedAt: Date.now(),
+      }
+    })
+
+    if (changed) {
+      persistVideos()
+    }
+  }
+
+  function incrementPlayCount(videoId: string) {
+    let changed = false
+
+    videos.value = videos.value.map((video) => {
+      if (video.id !== videoId) {
+        return video
+      }
+
+      changed = true
+
+      return {
+        ...video,
+        playCount: video.playCount + 1,
+        updatedAt: Date.now(),
+      }
+    })
+
+    if (changed) {
+      persistVideos()
+    }
+  }
+
+  function addWatchTime(videoId: string, seconds: number) {
+    if (seconds <= 0) {
+      return
+    }
+
+    let changed = false
+
+    videos.value = videos.value.map((video) => {
+      if (video.id !== videoId) {
+        return video
+      }
+
+      changed = true
+
+      return {
+        ...video,
+        totalWatchTime: Math.round((video.totalWatchTime + seconds) * 10) / 10,
+        updatedAt: Date.now(),
+      }
+    })
+
+    if (changed) {
+      persistVideos()
+    }
+  }
+
   const totalVideoCount = computed(() => videos.value.length)
 
   ensureDefaultCategory()
@@ -127,6 +197,9 @@ export const useLibraryStore = defineStore('library', () => {
     renameCategory,
     deleteCategory,
     addVideosToCategory,
+    toggleLike,
+    incrementPlayCount,
+    addWatchTime,
     syncCategoryStats,
   }
 })
