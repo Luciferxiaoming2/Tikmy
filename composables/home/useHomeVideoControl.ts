@@ -66,6 +66,13 @@ export function requestVideoFullscreen(domId: string) {
   })
 }
 
+export function seekVideoToTime(domId: string, time: number) {
+  const context = uni.createVideoContext(domId)
+  context.seek(Math.max(0, time))
+  context.playbackRate(1)
+  context.play()
+}
+
 export function pauseAllVideos(targets: VideoPlaybackTarget[]) {
   targets.forEach((target) => {
     const context = uni.createVideoContext(target.domId)

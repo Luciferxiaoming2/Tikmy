@@ -15,6 +15,13 @@
       }
     },
     {
+      "path": "pages/search/index",
+      "style": {
+        "navigationStyle": "custom",
+        "disableScroll": false
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
         "navigationStyle": "custom",
