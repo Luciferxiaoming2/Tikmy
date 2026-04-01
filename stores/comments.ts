@@ -43,6 +43,39 @@ export const useCommentStore = defineStore('comments', () => {
     return item
   }
 
+  function replaceComments(nextComments: CommentItem[]) {
+    comments.value = Array.isArray(nextComments) ? nextComments : []
+    persistComments()
+  }
+
+  function importBackupComments(nextComments: CommentItem[], videoIdMap: Map<string, string>) {
+    const importedComments = nextComments.flatMap((comment, index) => {
+      const nextVideoId = videoIdMap.get(comment.videoId)
+
+      if (!nextVideoId) {
+        return []
+      }
+
+      return [
+        {
+          ...comment,
+          id: createId(`comment_import_${index}`),
+          videoId: nextVideoId,
+          createdAt: Date.now() + index,
+        },
+      ]
+    })
+
+    if (!importedComments.length) {
+      return 0
+    }
+
+    comments.value = [...comments.value, ...importedComments]
+    persistComments()
+
+    return importedComments.length
+  }
+
   const totalCommentCount = computed(() => comments.value.length)
 
   return {
@@ -50,5 +83,7 @@ export const useCommentStore = defineStore('comments', () => {
     totalCommentCount,
     getCommentsByVideoId,
     addComment,
+    replaceComments,
+    importBackupComments,
   }
 })

@@ -21,6 +21,14 @@ function getMiniProgramFileSystemManager() {
   return null
 }
 
+function getMiniProgramUserDataPath() {
+  if (typeof wx !== 'undefined' && wx.env?.USER_DATA_PATH) {
+    return wx.env.USER_DATA_PATH
+  }
+
+  return ''
+}
+
 export async function persistMediaFile(tempFilePath: string) {
   const fileSystemManager = getMiniProgramFileSystemManager()
 
@@ -128,6 +136,104 @@ export async function removePersistedFile(filePath: string) {
       removed: false,
     }
   }
+}
+
+export async function ensureUserDataDirectory(dirName: string) {
+  const fileSystemManager = getMiniProgramFileSystemManager()
+  const userDataPath = getMiniProgramUserDataPath()
+
+  if (!fileSystemManager || !userDataPath) {
+    throw new Error('当前环境不支持本地目录创建')
+  }
+
+  const targetPath = `${userDataPath}/${dirName}`
+
+  await new Promise<void>((resolve, reject) => {
+    fileSystemManager.mkdir({
+      dirPath: targetPath,
+      recursive: true,
+      success: () => resolve(),
+      fail: (error) => {
+        const message = String(error?.errMsg || '')
+
+        if (message.includes('file already exists')) {
+          resolve()
+          return
+        }
+
+        reject(error)
+      },
+    })
+  })
+
+  return targetPath
+}
+
+export async function writeUserDataTextFile(filePath: string, content: string) {
+  const fileSystemManager = getMiniProgramFileSystemManager()
+
+  if (!fileSystemManager) {
+    throw new Error('当前环境不支持本地文件写入')
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    fileSystemManager.writeFile({
+      filePath,
+      data: content,
+      encoding: 'utf8',
+      success: () => resolve(),
+      fail: reject,
+    })
+  })
+}
+
+export async function readTextFile(filePath: string) {
+  const fileSystemManager = getMiniProgramFileSystemManager()
+
+  if (!fileSystemManager) {
+    throw new Error('当前环境不支持本地文件读取')
+  }
+
+  const result = await new Promise<{ data: string | ArrayBuffer }>((resolve, reject) => {
+    fileSystemManager.readFile({
+      filePath,
+      encoding: 'utf8',
+      success: resolve,
+      fail: reject,
+    })
+  })
+
+  return typeof result.data === 'string' ? result.data : ''
+}
+
+export async function checkFileExists(filePath: string) {
+  if (!filePath) {
+    return false
+  }
+
+  const fileSystemManager = getMiniProgramFileSystemManager()
+
+  if (!fileSystemManager) {
+    return false
+  }
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      fileSystemManager.access({
+        path: filePath,
+        success: () => resolve(),
+        fail: reject,
+      })
+    })
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function getUserDataPath() {
+  return getMiniProgramUserDataPath()
 }
 
 export function estimateMediaFilesSize(

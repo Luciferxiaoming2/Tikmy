@@ -112,7 +112,6 @@ export function createVideoAssets(
 
   return mediaFiles.map<VideoAsset>((file, index) => {
     const duration = Number(file.duration || 0)
-    const size = Number(file.size || 0)
     const width = typeof file.width === 'number' ? file.width : undefined
     const height = typeof file.height === 'number' ? file.height : undefined
 
@@ -121,7 +120,7 @@ export function createVideoAssets(
       categoryId,
       localPath: file.persistedPath || file.tempFilePath,
       posterPath: file.thumbTempFilePath || '',
-      videoHash: `${duration}_${size || file.tempFilePath}`,
+      videoHash: buildVideoAssetHash(file),
       duration,
       width,
       height,
@@ -133,6 +132,17 @@ export function createVideoAssets(
       updatedAt: now + index,
     }
   })
+}
+
+export function buildVideoAssetHash(file: {
+  duration?: number
+  size?: number
+  tempFilePath?: string
+}) {
+  const duration = Number(file.duration || 0)
+  const size = Number(file.size || 0)
+
+  return `${duration}_${size || file.tempFilePath || ''}`
 }
 
 export function moveVideosToCategory(videos: VideoAsset[], fromCategoryId: string, toCategoryId: string) {

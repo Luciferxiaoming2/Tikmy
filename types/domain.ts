@@ -51,3 +51,12 @@ export interface CommentItem {
   source: string
   createdAt: number
 }
+
+export interface BackupPayload {
+  schemaVersion: number
+  exportedAt: number
+  userSettings: UserSettings
+  categories: Category[]
+  videos: VideoAsset[]
+  comments: CommentItem[]
+}

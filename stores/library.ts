@@ -16,6 +16,10 @@ import {
 import { getStorageItem, setStorageItem } from '@/services/storage/kv'
 import type { Category, VideoAsset } from '@/types/domain'
 
+function createImportedEntityId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
 export const useLibraryStore = defineStore('library', () => {
   const categories = ref<Category[]>(getStorageItem<Category[]>(STORAGE_KEYS.categories, []))
   const videos = ref<VideoAsset[]>(getStorageItem<VideoAsset[]>(STORAGE_KEYS.videos, []))
@@ -253,6 +257,93 @@ export const useLibraryStore = defineStore('library', () => {
     return currentVideo
   }
 
+  function replaceLibraryData(nextCategories: Category[], nextVideos: VideoAsset[]) {
+    categories.value = ensureBaseCategories(nextCategories)
+    videos.value = Array.isArray(nextVideos) ? nextVideos : []
+    persistVideos()
+    syncCategoryStats()
+  }
+
+  function repairVideoSources(
+    repairs: Array<
+      Pick<VideoAsset, 'id' | 'localPath' | 'posterPath' | 'videoHash' | 'width' | 'height' | 'importHint'>
+    >,
+  ) {
+    if (!repairs.length) {
+      return 0
+    }
+
+    const repairMap = new Map(repairs.map((repair) => [repair.id, repair]))
+    let repairedCount = 0
+
+    videos.value = videos.value.map((video) => {
+      const repair = repairMap.get(video.id)
+
+      if (!repair) {
+        return video
+      }
+
+      repairedCount += 1
+
+      return {
+        ...video,
+        localPath: repair.localPath,
+        posterPath: repair.posterPath,
+        videoHash: repair.videoHash,
+        width: repair.width,
+        height: repair.height,
+        importHint: repair.importHint,
+        updatedAt: Date.now(),
+      }
+    })
+
+    if (repairedCount) {
+      persistVideos()
+      syncCategoryStats()
+    }
+
+    return repairedCount
+  }
+
+  function importBackupVideos(targetCategoryName: string, nextVideos: VideoAsset[]) {
+    const baseName = targetCategoryName.trim() || '导入备份'
+    let resolvedName = baseName
+    let suffix = 2
+
+    while (categories.value.some((category) => category.name.trim().toLowerCase() === resolvedName.trim().toLowerCase())) {
+      resolvedName = `${baseName} ${suffix}`
+      suffix += 1
+    }
+
+    const targetCategory = createCategoryEntity(resolvedName)
+    const videoIdMap = new Map<string, string>()
+
+    const importedVideos = nextVideos.map((video, index) => {
+      const nextId = createImportedEntityId('video')
+      videoIdMap.set(video.id, nextId)
+
+      return {
+        ...video,
+        id: nextId,
+        categoryId: targetCategory.id,
+        createdAt: Date.now() + index,
+        updatedAt: Date.now() + index,
+      }
+    })
+
+    categories.value = [targetCategory, ...categories.value]
+    videos.value = [...importedVideos, ...videos.value]
+    persistVideos()
+    persistCategories()
+    syncCategoryStats()
+
+    return {
+      category: targetCategory,
+      importedVideos,
+      videoIdMap,
+    }
+  }
+
   const totalVideoCount = computed(() => videos.value.length)
 
   ensureDefaultCategory()
@@ -273,6 +364,9 @@ export const useLibraryStore = defineStore('library', () => {
     moveVideoToCategory,
     copyVideoToCategory,
     deleteVideo,
+    replaceLibraryData,
+    repairVideoSources,
+    importBackupVideos,
     syncCategoryStats,
   }
 })

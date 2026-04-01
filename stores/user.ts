@@ -83,6 +83,20 @@ export const useUserStore = defineStore('user', () => {
     persistSettings()
   }
 
+  function replaceSettings(nextSettings: Partial<UserSettings> | null | undefined) {
+    const normalized = normalizeSettings(nextSettings)
+
+    passcode.value = normalized.passcode
+    useBiometrics.value = normalized.useBiometrics
+    theme.value = normalized.theme
+    playbackCategoryId.value = normalized.playbackCategoryId
+    playbackMode.value = normalized.playbackMode
+    likeWeight.value = normalized.likeWeight
+    gestures.value = normalized.gestures
+    persistSettings()
+    applyThemeChrome(normalized.theme)
+  }
+
   applyThemeChrome(theme.value)
 
   return {
@@ -102,6 +116,7 @@ export const useUserStore = defineStore('user', () => {
     setPlaybackMode,
     setLikeWeight,
     setGestureSetting,
+    replaceSettings,
   }
 })
 

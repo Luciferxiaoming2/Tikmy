@@ -1,7 +1,7 @@
-export async function chooseVideos() {
+export async function chooseVideos(options?: { count?: number }) {
   return new Promise<WechatMiniprogram.ChooseMediaSuccessCallbackResult>((resolve, reject) => {
     uni.chooseMedia({
-      count: 9,
+      count: Math.max(1, Math.min(20, Math.round(options?.count || 9))),
       mediaType: ['video'],
       sourceType: ['album'],
       success: resolve,
