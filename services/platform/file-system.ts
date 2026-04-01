@@ -13,9 +13,28 @@ interface SavedFileEntry {
   size?: number
 }
 
+function getMiniProgramFileSystemManager() {
+  if (typeof wx !== 'undefined' && typeof wx.getFileSystemManager === 'function') {
+    return wx.getFileSystemManager()
+  }
+
+  return null
+}
+
 export async function persistMediaFile(tempFilePath: string) {
+  const fileSystemManager = getMiniProgramFileSystemManager()
+
   try {
     const result = await new Promise<{ savedFilePath: string }>((resolve, reject) => {
+      if (fileSystemManager) {
+        fileSystemManager.saveFile({
+          tempFilePath,
+          success: resolve,
+          fail: reject,
+        })
+        return
+      }
+
       uni.saveFile({
         tempFilePath,
         success: resolve,
@@ -36,8 +55,18 @@ export async function persistMediaFile(tempFilePath: string) {
 }
 
 export async function getSavedFileUsageSummary(): Promise<SavedFileUsageSummary> {
+  const fileSystemManager = getMiniProgramFileSystemManager()
+
   try {
     const result = await new Promise<{ fileList: SavedFileEntry[] }>((resolve, reject) => {
+      if (fileSystemManager) {
+        fileSystemManager.getSavedFileList({
+          success: resolve,
+          fail: reject,
+        })
+        return
+      }
+
       uni.getSavedFileList({
         success: resolve,
         fail: reject,
@@ -72,7 +101,18 @@ export async function removePersistedFile(filePath: string) {
   }
 
   try {
+    const fileSystemManager = getMiniProgramFileSystemManager()
+
     await new Promise<void>((resolve, reject) => {
+      if (fileSystemManager) {
+        fileSystemManager.removeSavedFile({
+          filePath,
+          success: () => resolve(),
+          fail: reject,
+        })
+        return
+      }
+
       uni.removeSavedFile({
         filePath,
         success: () => resolve(),

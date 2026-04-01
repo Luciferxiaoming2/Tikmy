@@ -140,7 +140,7 @@
       :primary-action-style="primaryActionStyle"
       :duration-badge-style="durationBadgeStyle"
       @close="closeGallerySheet"
-      @import="handleGalleryImport"
+      @import-category="handleGalleryImport"
       @select-video="openVideoDetail"
     />
 
@@ -211,6 +211,7 @@ const storageUsage = ref<SavedFileUsageSummary>({
 const showGallerySheet = ref(false)
 const showVideoDetailSheet = ref(false)
 const activeVideoId = ref('')
+const isImporting = ref(false)
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -399,7 +400,12 @@ function closeVideoDetailSheet() {
 }
 
 async function importToCategory(categoryId: string) {
+  if (isImporting.value) {
+    return
+  }
+
   try {
+    isImporting.value = true
     const result = await chooseVideos()
     const mediaFiles = normalizeChosenVideos(result)
 
@@ -420,24 +426,46 @@ async function importToCategory(categoryId: string) {
       return
     }
 
-    const persistedMediaFiles = await Promise.all(
-      mediaFiles.map(async (file) => {
-        const persisted = await persistMediaFile(file.tempFilePath)
+    const persistedMediaFiles: Array<
+      WechatMiniprogram.MediaFile & {
+        thumbTempFilePath?: string
+        persistedPath?: string
+      }
+    > = []
 
-        return {
-          ...file,
-          persistedPath: persisted.path,
-        }
-      }),
-    )
+    const total = mediaFiles.length
+
+    for (const [index, file] of mediaFiles.entries()) {
+      uni.showLoading({
+        title: `导入 ${index + 1}/${total}`,
+        mask: true,
+      })
+
+      const persisted = await persistMediaFile(file.tempFilePath)
+
+      persistedMediaFiles.push({
+        ...file,
+        persistedPath: persisted.path,
+      })
+    }
 
     const imported = libraryStore.addVideosToCategory(categoryId, persistedMediaFiles)
     await refreshStorageUsage()
+
+    const riskyVideos = imported.filter((video) => video.importHint)
 
     uni.showToast({
       title: `已导入 ${imported.length} 个视频`,
       icon: 'success',
     })
+
+    if (riskyVideos.length) {
+      uni.showModal({
+        title: '导入完成',
+        content: `其中 ${riskyVideos.length} 个视频可能存在微信小程序兼容性问题，若播放时只有声音没有画面，建议转为 H.264 编码的 MP4 后再导入。`,
+        showCancel: false,
+      })
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
 
@@ -449,6 +477,9 @@ async function importToCategory(categoryId: string) {
       title: '导入视频失败',
       icon: 'none',
     })
+  } finally {
+    uni.hideLoading()
+    isImporting.value = false
   }
 }
 

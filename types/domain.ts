@@ -33,6 +33,9 @@ export interface VideoAsset {
   posterPath: string
   videoHash: string
   duration: number
+  width?: number
+  height?: number
+  importHint?: string
   isLiked: boolean
   playCount: number
   totalWatchTime: number

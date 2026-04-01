@@ -34,6 +34,10 @@
           <text class="info-row__label" :style="textMutedStyle">本地文件</text>
           <text class="info-row__value info-row__value--path" :style="textPrimaryStyle">{{ video.localPath }}</text>
         </view>
+        <view v-if="video.importHint" class="info-row">
+          <text class="info-row__label" :style="textMutedStyle">兼容性提示</text>
+          <text class="info-row__value info-row__value--path" :style="textPrimaryStyle">{{ video.importHint }}</text>
+        </view>
       </view>
 
       <view class="action-list">

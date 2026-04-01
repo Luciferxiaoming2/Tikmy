@@ -12,7 +12,7 @@
       </view>
 
       <view class="sheet-actions">
-        <view class="action-pill" :style="primaryActionStyle" @tap="$emit('import')">
+        <view class="action-pill" :style="primaryActionStyle" @tap="$emit('import-category')">
           <text class="action-pill__text action-pill__text--primary">导入到此分类</text>
         </view>
       </view>
@@ -60,7 +60,7 @@ defineProps<{
 
 defineEmits<{
   (event: 'close'): void
-  (event: 'import'): void
+  (event: 'import-category'): void
   (event: 'select-video', videoId: string): void
 }>()
 

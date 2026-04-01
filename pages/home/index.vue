@@ -39,6 +39,7 @@
             @timeupdate="handleTimeUpdate(video.id, $event)"
             @play="handleVideoPlay(video.id)"
             @ended="handleVideoEnded(video.id)"
+            @error="handleVideoError(video)"
           />
 
           <view class="video-scrim" />
@@ -60,6 +61,16 @@
             @open-info="openSheet('info')"
             @open-comments="openSheet('comments')"
           />
+
+          <view
+            v-if="video.id === activeVideoId && shouldShowFullscreenButton(video)"
+            class="fullscreen-trigger glass-panel"
+            :style="panelInlineStyle"
+            @tap.stop="handleFullscreen(video.id)"
+          >
+            <text class="fullscreen-trigger__icon">⤢</text>
+            <text class="fullscreen-trigger__text" :style="textPrimaryStyle">全屏观看</text>
+          </view>
 
           <view
             v-if="video.id === activeVideoId && isActiveVideoPaused"
@@ -109,6 +120,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import HomeActionRail from '@/components/business/home/HomeActionRail.vue'
 import HomeCommentPanel from '@/components/business/home/HomeCommentPanel.vue'
@@ -124,6 +136,8 @@ import {
 } from '@/composables/home/useHomeFeed'
 import {
   playVideoFromStart,
+  pauseAllVideos,
+  requestVideoFullscreen,
   setVideoPlaybackRate,
   syncVideoPlayback,
   toggleVideoPlayback,
@@ -154,6 +168,8 @@ const pendingSingleTapTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const speedBoostVideoId = ref('')
 const activeSheet = ref<'none' | 'info' | 'comments'>('none')
 const isActiveVideoPaused = ref(false)
+const isPageVisible = ref(false)
+const compatibilityPromptedVideoIds = ref<string[]>([])
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -236,7 +252,7 @@ watch(
 watch(
   feedVideos,
   (nextVideos) => {
-    if (!nextVideos.length) {
+    if (!isPageVisible.value || !nextVideos.length) {
       return
     }
 
@@ -256,7 +272,7 @@ watch(
 watch(
   () => playerStore.activeVideoId,
   async (videoId) => {
-    if (!videoId) {
+    if (!videoId || !isPageVisible.value) {
       return
     }
 
@@ -265,6 +281,34 @@ watch(
     isActiveVideoPaused.value = false
   },
 )
+
+onShow(() => {
+  isPageVisible.value = true
+
+  if (!feedVideos.value.length) {
+    return
+  }
+
+  const currentVideo =
+    feedVideos.value.find((video) => video.id === playerStore.activeVideoId) ||
+    feedVideos.value[playerStore.currentIndex] ||
+    feedVideos.value[0]
+
+  if (!currentVideo) {
+    return
+  }
+
+  const nextIndex = feedVideos.value.findIndex((video) => video.id === currentVideo.id)
+  activateVideo(currentVideo.id, nextIndex >= 0 ? nextIndex : 0)
+})
+
+onHide(() => {
+  isPageVisible.value = false
+  clearPendingSingleTap()
+  speedBoostVideoId.value = ''
+  activeSheet.value = 'none'
+  pauseAllVideos(feedVideos.value)
+})
 
 function activateVideo(videoId: string, index: number) {
   playerStore.setActiveVideo(videoId, index)
@@ -336,6 +380,22 @@ function handleVideoEnded(videoId: string) {
   if (nextVideo.id === videoId) {
     playVideoFromStart(videoId)
   }
+}
+
+function handleVideoError(video: VideoAsset) {
+  if (compatibilityPromptedVideoIds.value.includes(video.id)) {
+    return
+  }
+
+  compatibilityPromptedVideoIds.value = [...compatibilityPromptedVideoIds.value, video.id]
+
+  uni.showModal({
+    title: '播放兼容性提示',
+    content:
+      video.importHint ||
+      '当前视频可能是微信小程序不完全支持的编码格式。若播放时只有声音没有画面，建议转为 H.264 编码的 MP4 后重新导入。',
+    showCancel: false,
+  })
 }
 
 function handleTimeUpdate(
@@ -462,6 +522,26 @@ function getRandomNextIndex() {
 
 function toggleLike(videoId: string) {
   libraryStore.toggleLike(videoId)
+}
+
+function shouldShowFullscreenButton(video: VideoAsset) {
+  if (typeof video.width === 'number' && typeof video.height === 'number') {
+    return video.width / Math.max(video.height, 1) >= 1.2
+  }
+
+  return false
+}
+
+function handleFullscreen(videoId: string) {
+  try {
+    requestVideoFullscreen(videoId)
+  } catch (error) {
+    console.warn('Failed to request fullscreen playback', error)
+    uni.showToast({
+      title: '暂时无法进入全屏',
+      icon: 'none',
+    })
+  }
 }
 
 function submitComment() {
@@ -592,6 +672,30 @@ function goToLibrary() {
 .pause-indicator__label {
   margin-top: 12rpx;
   font-size: 22rpx;
+}
+
+.fullscreen-trigger {
+  position: absolute;
+  left: 28rpx;
+  right: 132rpx;
+  bottom: 112rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  min-height: 76rpx;
+  border-radius: 9999rpx;
+}
+
+.fullscreen-trigger__icon {
+  color: #fff;
+  font-size: 28rpx;
+  line-height: 1;
+}
+
+.fullscreen-trigger__text {
+  font-size: 24rpx;
+  font-weight: 600;
 }
 
 .sheet-mask {

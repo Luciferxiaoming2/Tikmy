@@ -1,4 +1,5 @@
 import type { Category, VideoAsset } from '@/types/domain'
+import { detectVideoImportHint } from '@/services/platform/media'
 
 export const DEFAULT_CATEGORY_ID = 'default'
 export const DEFAULT_CATEGORY_NAME = '全部'
@@ -112,6 +113,8 @@ export function createVideoAssets(
   return mediaFiles.map<VideoAsset>((file, index) => {
     const duration = Number(file.duration || 0)
     const size = Number(file.size || 0)
+    const width = typeof file.width === 'number' ? file.width : undefined
+    const height = typeof file.height === 'number' ? file.height : undefined
 
     return {
       id: createId(`video_${index}`),
@@ -120,6 +123,9 @@ export function createVideoAssets(
       posterPath: file.thumbTempFilePath || '',
       videoHash: `${duration}_${size || file.tempFilePath}`,
       duration,
+      width,
+      height,
+      importHint: detectVideoImportHint(file),
       isLiked: false,
       playCount: 0,
       totalWatchTime: 0,

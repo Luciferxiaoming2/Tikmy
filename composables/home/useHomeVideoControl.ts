@@ -42,3 +42,18 @@ export function playVideoFromStart(videoId: string) {
   context.playbackRate(1)
   context.play()
 }
+
+export function requestVideoFullscreen(videoId: string) {
+  const context = uni.createVideoContext(videoDomId(videoId))
+  context.requestFullScreen({
+    direction: 90,
+  })
+}
+
+export function pauseAllVideos(videos: VideoAsset[]) {
+  videos.forEach((video) => {
+    const context = uni.createVideoContext(videoDomId(video.id))
+    context.pause()
+    context.playbackRate(1)
+  })
+}
