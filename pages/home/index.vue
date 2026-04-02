@@ -81,7 +81,7 @@
       </swiper-item>
     </swiper>
 
-    <view v-if="feedVideos.length" class="video-topbar">
+    <view v-if="homeCategoryTabs.length" class="video-topbar">
       <view class="video-topbar__nav">
         <view class="video-topbar__menu" @tap.stop="handleMenuPlaceholder">
           <text class="video-topbar__menu-icon">&#9776;</text>

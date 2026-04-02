@@ -2,57 +2,81 @@
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="page-header">
       <text class="eyebrow" :style="accentStyle">LIBRARY</text>
-      <text class="title" :style="textPrimaryStyle">素材库</text>
+      <text class="title" :style="textPrimaryStyle">{{ '\u7d20\u6750\u5e93' }}</text>
       <text class="description" :style="textSecondaryStyle">
-        先完成分类管理和本地视频导入，再在分类里像相册一样整理所有视频。
+        {{ '\u5148\u5b8c\u6210\u5206\u7c7b\u7ba1\u7406\u548c\u672c\u5730\u89c6\u9891\u5bfc\u5165\uff0c\u518d\u5728\u5206\u7c7b\u91cc\u50cf\u76f8\u518c\u4e00\u6837\u6574\u7406\u6240\u6709\u89c6\u9891\u3002' }}
       </text>
     </view>
 
     <view class="hero glass-panel" :style="panelInlineStyle">
       <view class="hero-copy">
-        <text class="hero-title" :style="textPrimaryStyle">当前已收纳 {{ totalVideoCount }} 个视频</text>
+        <text class="hero-title" :style="textPrimaryStyle">{{ '\u5f53\u524d\u5df2\u6536\u7eb3' }} {{ totalVideoCount }} {{ '\u4e2a\u89c6\u9891' }}</text>
         <text class="hero-description" :style="textSecondaryStyle">
-          从“全部”或自定义分类开始导入，后续可在分类相册里查看详情、复制和移动视频。
+          {{ '\u4ece\u201c\u5168\u90e8\u201d\u6216\u81ea\u5b9a\u4e49\u5206\u7c7b\u5f00\u59cb\u5bfc\u5165\uff0c\u540e\u7eed\u53ef\u5728\u5206\u7c7b\u76f8\u518c\u91cc\u67e5\u770b\u8be6\u60c5\u3001\u590d\u5236\u548c\u79fb\u52a8\u89c6\u9891\u3002' }}
         </text>
         <text class="hero-meta" :style="textMutedStyle">{{ storageSummaryText }}</text>
       </view>
       <view class="hero-actions">
         <view class="action action--primary" :style="primaryActionStyle" @tap="handleQuickImport">
-          <text class="action-text action-text--primary">导入视频</text>
+          <text class="action-text action-text--primary">{{ '\u5bfc\u5165\u89c6\u9891' }}</text>
         </view>
         <view class="action" :style="secondaryActionStyle" @tap="openCreateCategory">
-          <text class="action-text" :style="textPrimaryStyle">新建分类</text>
+          <text class="action-text" :style="textPrimaryStyle">{{ '\u65b0\u5efa\u5206\u7c7b' }}</text>
         </view>
       </view>
     </view>
 
     <view v-if="storageUsage.warning" class="storage-alert glass-panel" :style="warningPanelStyle">
-      <text class="storage-alert__title">本地存储空间接近上限</text>
+      <text class="storage-alert__title">{{ '\u672c\u5730\u5b58\u50a8\u7a7a\u95f4\u63a5\u8fd1\u4e0a\u9650' }}</text>
       <text class="storage-alert__copy" :style="textSecondaryStyle">
-        当前已保存 {{ formatReadableBytes(storageUsage.usedBytes) }}，建议及时整理分类或减少重复导入。
+        {{ '\u5f53\u524d\u5df2\u4fdd\u5b58' }} {{ formatReadableBytes(storageUsage.usedBytes) }} {{ '\uff0c\u5efa\u8bae\u53ca\u65f6\u6574\u7406\u5206\u7c7b\u6216\u51cf\u5c11\u91cd\u590d\u5bfc\u5165\u3002' }}
       </text>
     </view>
 
     <view class="section-header">
-      <text class="section-title" :style="textPrimaryStyle">分类列表</text>
-      <text class="section-meta" :style="textMutedStyle">{{ categories.length }} 个分类</text>
+      <text class="section-title" :style="textPrimaryStyle">{{ '\u5206\u7c7b\u5217\u8868' }}</text>
+      <text class="section-meta" :style="textMutedStyle">{{ sortedCategories.length }} {{ '\u4e2a\u5206\u7c7b' }}</text>
     </view>
 
-    <view v-if="!categories.length" class="empty-state glass-panel" :style="panelInlineStyle">
-      <text class="empty-title" :style="textPrimaryStyle">还没有分类</text>
-      <text class="empty-copy" :style="textSecondaryStyle">先创建一个分类，然后往里面导入视频。</text>
+    <view v-if="sortedCategories.length" class="library-search glass-panel" :style="panelInlineStyle">
+      <view class="library-search__icon" aria-hidden="true">
+        <view class="library-search__lens" />
+        <view class="library-search__handle" />
+      </view>
+      <input
+        v-model="categorySearchKeyword"
+        class="library-search__input"
+        :style="textPrimaryStyle"
+        type="text"
+        maxlength="20"
+        :placeholder="categorySearchPlaceholder"
+        :placeholder-style="categorySearchPlaceholderStyle"
+      />
+      <view v-if="categorySearchKeyword" class="library-search__clear" @tap="clearCategorySearch">
+        <text class="library-search__clear-icon" :style="textMutedStyle">{{ '\u00d7' }}</text>
+      </view>
+    </view>
+
+    <view v-if="!sortedCategories.length" class="empty-state glass-panel" :style="panelInlineStyle">
+      <text class="empty-title" :style="textPrimaryStyle">{{ '\u8fd8\u6ca1\u6709\u5206\u7c7b' }}</text>
+      <text class="empty-copy" :style="textSecondaryStyle">{{ '\u5148\u521b\u5efa\u4e00\u4e2a\u5206\u7c7b\uff0c\u7136\u540e\u5f80\u91cc\u9762\u5bfc\u5165\u89c6\u9891\u3002' }}</text>
       <view class="empty-actions">
         <view class="action action--primary" :style="primaryActionStyle" @tap="openCreateCategory">
-          <text class="action-text action-text--primary">创建分类</text>
+          <text class="action-text action-text--primary">{{ '\u521b\u5efa\u5206\u7c7b' }}</text>
         </view>
       </view>
+    </view>
+
+    <view v-else-if="!filteredCategories.length" class="empty-state glass-panel" :style="panelInlineStyle">
+      <text class="empty-title" :style="textPrimaryStyle">{{ '\u6ca1\u6709\u627e\u5230\u5339\u914d\u7684\u5206\u7c7b' }}</text>
+      <text class="empty-copy" :style="textSecondaryStyle">{{ '\u8bd5\u8bd5\u5176\u4ed6\u5173\u952e\u8bcd\uff0c\u6216\u6e05\u7a7a\u641c\u7d22\u67e5\u770b\u5168\u90e8\u5206\u7c7b\u3002' }}</text>
     </view>
 
     <view v-else class="category-list-shell" :style="categoryListShellStyle">
       <scroll-view scroll-y enable-flex show-scrollbar class="category-list-scroll">
         <view class="category-list">
       <view
-        v-for="category in categories"
+        v-for="category in filteredCategories"
         :key="category.id"
         class="category-card glass-panel"
         :style="panelInlineStyle"
@@ -65,7 +89,7 @@
           <view class="category-head">
             <view class="category-head__main">
               <text class="category-name" :style="textPrimaryStyle">{{ category.name }}</text>
-              <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} 个视频</text>
+              <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} {{ '\u4e2a\u89c6\u9891' }}</text>
             </view>
             <view
               v-if="!isProtectedCategory(category.id)"
@@ -73,7 +97,7 @@
               :style="secondaryActionStyle"
               @tap.stop="openCategoryActions(category)"
             >
-              <text class="category-more__text" :style="textMutedStyle">管理</text>
+              <text class="category-more__text" :style="textMutedStyle">{{ '\u7ba1\u7406' }}</text>
             </view>
           </view>
           <text class="category-note" :style="textSecondaryStyle">{{ getCategoryNote(category) }}</text>
@@ -84,7 +108,7 @@
               :style="primaryActionStyle"
               @tap.stop="handleImport(category.id)"
             >
-              <text class="action-text action-text--primary">导入到此分类</text>
+              <text class="action-text action-text--primary">{{ '\u5bfc\u5165\u5230\u6b64\u5206\u7c7b' }}</text>
             </view>
           </view>
         </view>
@@ -98,32 +122,32 @@
       <view class="sheet-handle" />
       <view class="sheet-header">
         <text class="sheet-title" :style="textPrimaryStyle">{{ sheetTitle }}</text>
-        <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">关闭</text>
+        <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">{{ '\u5173\u95ed' }}</text>
       </view>
 
       <view v-if="sheetMode === 'form'" class="sheet-body">
-        <text class="sheet-label" :style="textSecondaryStyle">分类名称</text>
+        <text class="sheet-label" :style="textSecondaryStyle">{{ '\u5206\u7c7b\u540d\u79f0' }}</text>
         <input
           v-model="categoryDraftName"
           class="sheet-input"
           :style="inputInlineStyle"
           maxlength="20"
-          placeholder="输入分类名"
+          :placeholder="categoryNamePlaceholder"
           placeholder-style="color: #8e8e93;"
           :focus="showCategorySheet"
           confirm-type="done"
           @confirm="submitCategoryForm"
         />
-        <text class="sheet-hint" :style="textMutedStyle">例如：旅行、音乐、收藏、练习素材</text>
+        <text class="sheet-hint" :style="textMutedStyle">{{ '\u4f8b\u5982\uff1a\u65c5\u884c\u3001\u97f3\u4e50\u3001\u6536\u85cf\u3001\u7ec3\u4e60\u7d20\u6750' }}</text>
       </view>
 
       <view v-else class="sheet-menu">
         <view class="sheet-menu__item" @tap="startRenameCategory">
-          <text class="sheet-menu__text" :style="textPrimaryStyle">重命名分类</text>
+          <text class="sheet-menu__text" :style="textPrimaryStyle">{{ '\u91cd\u547d\u540d\u5206\u7c7b' }}</text>
         </view>
         <view class="sheet-menu__item sheet-menu__item--danger" @tap="confirmDeleteCategory">
-          <text class="sheet-menu__text sheet-menu__text--danger">删除分类</text>
-          <text class="sheet-menu__hint" :style="textMutedStyle">分类中的视频会自动转移到“全部”。</text>
+          <text class="sheet-menu__text sheet-menu__text--danger">{{ '\u5220\u9664\u5206\u7c7b' }}</text>
+          <text class="sheet-menu__hint" :style="textMutedStyle">{{ '\u5206\u7c7b\u4e2d\u7684\u89c6\u9891\u4f1a\u81ea\u52a8\u8f6c\u79fb\u5230\u201c\u5168\u90e8\u201d\u3002' }}</text>
         </view>
       </view>
 
@@ -136,7 +160,7 @@
 
     <CategoryGallerySheet
       :open="showGallerySheet"
-      :title="activeCategory?.name || '分类相册'"
+      :title="activeCategory?.name || '\u5206\u7c7b\u76f8\u518c'"
       :subtitle="gallerySubtitle"
       :videos="activeCategoryVideos"
       :allow-import="canImportToCategory(activeCategory?.id || '')"
@@ -156,7 +180,7 @@
       :selected-card-style="selectedGalleryCardStyle"
       :check-style="selectedGalleryCheckStyle"
       @close="closeGallerySheet"
-      @import-category="handleGalleryImport"
+      :category-name="activeCategory?.name || '\u5168\u90e8'"
       @select-video="openVideoDetail"
       @enter-batch-mode="enterGalleryBatchMode"
       @toggle-select-all="toggleSelectAllGalleryVideos"
@@ -210,7 +234,8 @@ type VideoTransferMode = 'copy' | 'move'
 
 const DEFAULT_IMPORT_CATEGORY_ID = DEFAULT_CATEGORY_ID
 const protectedCategoryIds = [DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID]
-
+const categorySearchPlaceholder = '\u641c\u7d22\u5206\u7c7b'
+const categoryNamePlaceholder = '\u8f93\u5165\u5206\u7c7b\u540d'
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 
@@ -233,6 +258,7 @@ const showGallerySheet = ref(false)
 const showVideoDetailSheet = ref(false)
 const activeVideoId = ref('')
 const isImporting = ref(false)
+const categorySearchKeyword = ref('')
 const isGalleryBatchMode = ref(false)
 const selectedGalleryVideoIds = ref<string[]>([])
 
@@ -275,6 +301,9 @@ const inputInlineStyle = computed(() => ({
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
   background: activeTheme.value.themeOptionBackground,
 }))
+const categorySearchPlaceholderStyle = computed(
+  () => `color:${activeTheme.value.textMuted};font-size:24rpx;`,
+)
 const durationBadgeStyle = computed(() => ({
   color: '#ffffff',
   background: 'rgba(8, 8, 8, 0.68)',
@@ -322,6 +351,29 @@ const activeVideo = computed(
 )
 const gallerySubtitle = computed(() => `${activeCategoryVideos.value.length} 个视频 · 点击封面查看详情`)
 
+const sortedCategories = computed(() =>
+  [...categories.value].sort((left, right) => {
+    const leftRank = getCategorySortRank(left)
+    const rightRank = getCategorySortRank(right)
+
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank
+    }
+
+    return right.createdAt - left.createdAt
+  }),
+)
+const normalizedCategorySearchKeyword = computed(() => categorySearchKeyword.value.trim().toLowerCase())
+const filteredCategories = computed(() => {
+  if (!normalizedCategorySearchKeyword.value) {
+    return sortedCategories.value
+  }
+
+  return sortedCategories.value.filter((category) =>
+    category.name.toLowerCase().includes(normalizedCategorySearchKeyword.value),
+  )
+})
+
 const allGalleryVideosSelected = computed(
   () =>
     Boolean(activeCategoryVideos.value.length) &&
@@ -338,6 +390,22 @@ function isProtectedCategory(categoryId: string) {
 
 function canImportToCategory(categoryId: string) {
   return Boolean(categoryId) && categoryId !== FAVORITES_CATEGORY_ID
+}
+
+function clearCategorySearch() {
+  categorySearchKeyword.value = ''
+}
+
+function getCategorySortRank(category: Category) {
+  if (category.id === DEFAULT_CATEGORY_ID) {
+    return 0
+  }
+
+  if (category.id === FAVORITES_CATEGORY_ID) {
+    return 1
+  }
+
+  return category.name.trim().startsWith('\u5bfc\u5165') ? 2 : 3
 }
 
 function getCategoryNote(category: Category) {
@@ -609,7 +677,7 @@ function startVideoTransfer(mode: VideoTransferMode) {
     return
   }
 
-  const destinationCategories = categories.value.filter(
+  const destinationCategories = sortedCategories.value.filter(
     (category) => category.id !== video.categoryId && category.id !== FAVORITES_CATEGORY_ID,
   )
 
@@ -955,6 +1023,66 @@ eyebrow {
   flex-shrink: 0;
 }
 
+.library-search {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+  padding: 0 22rpx;
+  min-height: 84rpx;
+  flex-shrink: 0;
+}
+
+.library-search__icon {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+  flex: 0 0 28rpx;
+}
+
+.library-search__lens {
+  position: absolute;
+  top: 2rpx;
+  left: 1rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border: 4rpx solid rgba(255, 255, 255, 0.65);
+  border-radius: 9999rpx;
+}
+
+.library-search__handle {
+  position: absolute;
+  right: 2rpx;
+  bottom: 3rpx;
+  width: 10rpx;
+  height: 4rpx;
+  border-radius: 9999rpx;
+  background: rgba(255, 255, 255, 0.65);
+  transform: rotate(45deg);
+  transform-origin: center;
+}
+
+.library-search__input {
+  flex: 1;
+  min-width: 0;
+  height: 84rpx;
+  font-size: 26rpx;
+}
+
+.library-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  flex: 0 0 44rpx;
+}
+
+.library-search__clear-icon {
+  font-size: 34rpx;
+  line-height: 1;
+}
+
 .section-title {
   font-size: 38rpx;
   font-weight: 700;
@@ -1149,3 +1277,4 @@ eyebrow {
   margin-top: 28rpx;
 }
 </style>
+
