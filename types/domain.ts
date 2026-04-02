@@ -1,6 +1,7 @@
 import type { ThemeId } from '../theme/presets'
 
 export type PlaybackMode = 'sequential' | 'random'
+export type PlaybackEndAction = 'next' | 'loop'
 
 export interface GestureSettings {
   doubleTapLike: boolean
@@ -13,6 +14,7 @@ export interface UserSettings {
   theme: ThemeId
   playbackCategoryId: string
   playbackMode: PlaybackMode
+  playbackEndAction: PlaybackEndAction
   likeWeight: number
   gestures: GestureSettings
 }

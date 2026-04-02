@@ -226,6 +226,7 @@ function normalizeUserSettings(settings?: Partial<UserSettings> | null): UserSet
     theme: settings?.theme || DEFAULT_THEME_ID,
     playbackCategoryId: typeof settings?.playbackCategoryId === 'string' ? settings.playbackCategoryId : DEFAULT_CATEGORY_ID,
     playbackMode: settings?.playbackMode === 'random' ? 'random' : 'sequential',
+    playbackEndAction: settings?.playbackEndAction === 'loop' ? 'loop' : 'next',
     likeWeight: normalizeLikeWeight(settings?.likeWeight),
     gestures: {
       doubleTapLike: settings?.gestures?.doubleTapLike ?? true,

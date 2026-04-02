@@ -86,6 +86,20 @@
 
         <view class="setting-item glass-panel" :style="panelInlineStyle">
           <view class="setting-main">
+            <text class="label" :style="textPrimaryStyle">{{ '\u64ad\u653e\u7ed3\u675f\u540e\u5faa\u73af\u5f53\u524d\u89c6\u9891' }}</text>
+            <text class="setting-subtitle" :style="textSecondaryStyle">
+              {{ '\u5173\u95ed\u540e\u4f1a\u81ea\u52a8\u64ad\u653e\u4e0b\u4e00\u4e2a\uff08\u9ed8\u8ba4\uff09\u3002' }}
+            </text>
+          </view>
+          <switch
+            :checked="playbackEndAction === 'loop'"
+            :color="activeTheme.primary"
+            @change="handlePlaybackEndActionChange"
+          />
+        </view>
+
+        <view class="setting-item glass-panel" :style="panelInlineStyle">
+          <view class="setting-main">
             <text class="label" :style="textPrimaryStyle">生物识别占位</text>
             <text class="setting-subtitle" :style="textSecondaryStyle">
               预留给后续隐私能力，当前不影响 MVP 主流程。
@@ -216,7 +230,7 @@ const libraryStore = useLibraryStore()
 const commentStore = useCommentStore()
 const { categories, videos } = storeToRefs(libraryStore)
 const { comments } = storeToRefs(commentStore)
-const { gestures, likeWeight, playbackCategoryId, theme, useBiometrics } = storeToRefs(userStore)
+const { gestures, likeWeight, playbackCategoryId, playbackEndAction, theme, useBiometrics } = storeToRefs(userStore)
 const isThemePickerOpen = ref(false)
 const backupBusyLabel = ref('')
 const backupStatus = ref('')
@@ -308,6 +322,11 @@ function handleGestureChange(event: Event) {
   }
 
   userStore.setGestureSetting(key, Boolean(detail?.value))
+}
+
+function handlePlaybackEndActionChange(event: Event) {
+  const detail = (event as Event & { detail?: { value?: boolean } }).detail
+  userStore.setPlaybackEndAction(detail?.value ? 'loop' : 'next')
 }
 
 function toggleThemePicker() {

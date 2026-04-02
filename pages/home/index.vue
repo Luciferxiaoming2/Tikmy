@@ -353,7 +353,7 @@ const libraryStore = useLibraryStore()
 const playerStore = usePlayerStore()
 const commentStore = useCommentStore()
 
-const { gestures, likeWeight, playbackCategoryId, playbackMode, theme } = storeToRefs(userStore)
+const { gestures, likeWeight, playbackCategoryId, playbackEndAction, playbackMode, theme } = storeToRefs(userStore)
 const { categories, videos } = storeToRefs(libraryStore)
 const { activeVideoId } = storeToRefs(playerStore)
 const { comments } = storeToRefs(commentStore)
@@ -677,6 +677,11 @@ function handleVideoPlay(videoId: string) {
 
 function handleVideoEnded(videoId: string) {
   if (videoId !== activeVideoId.value || !feedVideos.value.length) {
+    return
+  }
+
+  if (playbackEndAction.value === 'loop') {
+    playVideoFromStart(videoDomId(videoId))
     return
   }
 

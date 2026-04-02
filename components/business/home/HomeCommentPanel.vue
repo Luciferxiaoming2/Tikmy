@@ -27,7 +27,7 @@
           class="comment-input"
           :style="inputStyle"
           maxlength="40"
-          :placeholder="'\u5199\u4e00\u53e5\u60f3\u5728\u4e0b\u6b21\u5237\u5230\u65f6\u770b\u5230\u7684\u8bdd'"
+          :placeholder="commentPlaceholder"
           placeholder-style="color: #8e8e93;"
           confirm-type="send"
           :adjust-position="false"
@@ -35,16 +35,18 @@
           @input="handleInput"
           @focus="handleInputFocus"
           @blur="handleInputBlur"
-          @confirm="handleSubmitTap"
+          @confirm="handleKeyboardSubmit"
         />
-        <view
+        <button
+          type="button"
           class="comment-send"
           :style="primaryActionStyle"
-          @tap.stop="handleSubmitTap"
-          @touchend.stop="handleSubmitTap"
+          hover-class="comment-send--active"
+          @touchstart.stop.prevent="handleSendPress"
+          @tap.stop.prevent="handleSendTap"
         >
           <text class="comment-send__text">{{ '\u53d1\u9001' }}</text>
-        </view>
+        </button>
       </view>
     </view>
   </view>
@@ -72,7 +74,9 @@ const emit = defineEmits<{
   (event: 'update:draft', value: string): void
 }>()
 
+const commentPlaceholder = '\u5199\u4e00\u53e5\u60f3\u5728\u4e0b\u6b21\u5237\u5230\u65f6\u770b\u5230\u7684\u8bdd'
 const isInputFocused = ref(false)
+const pendingSubmitAfterBlur = ref(false)
 
 function handleInput(event: Event & { detail?: { value?: string } }) {
   emit('update:draft', event.detail?.value || '')
@@ -80,22 +84,45 @@ function handleInput(event: Event & { detail?: { value?: string } }) {
 
 function handleInputFocus() {
   isInputFocused.value = true
+  pendingSubmitAfterBlur.value = false
 }
 
 function handleInputBlur() {
   isInputFocused.value = false
-}
 
-function handleSubmitTap() {
-  if (isInputFocused.value) {
-    isInputFocused.value = false
-    setTimeout(() => {
-      emit('submit')
-    }, 80)
+  if (!pendingSubmitAfterBlur.value) {
     return
   }
 
+  pendingSubmitAfterBlur.value = false
+  setTimeout(() => {
+    emitSubmit()
+  }, 50)
+}
+
+function emitSubmit() {
   emit('submit')
+}
+
+function handleKeyboardSubmit() {
+  pendingSubmitAfterBlur.value = false
+  isInputFocused.value = false
+  emitSubmit()
+}
+
+function handleSendPress() {
+  if (isInputFocused.value) {
+    pendingSubmitAfterBlur.value = true
+    uni.hideKeyboard()
+  }
+}
+
+function handleSendTap() {
+  if (pendingSubmitAfterBlur.value) {
+    return
+  }
+
+  emitSubmit()
 }
 </script>
 
@@ -172,10 +199,13 @@ function handleSubmitTap() {
   gap: 14rpx;
   align-items: center;
   margin-top: 18rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .comment-input {
   flex: 1;
+  width: 0;
   min-height: 84rpx;
   box-sizing: border-box;
   padding: 0 24rpx;
@@ -184,17 +214,30 @@ function handleSubmitTap() {
 }
 
 .comment-send {
-  display: flex;
-  min-width: 136rpx;
+  display: inline-flex;
+  width: 136rpx;
   min-height: 84rpx;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 22rpx;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  border: 0;
 }
 
 .comment-send__text {
   color: #08110c;
   font-size: 24rpx;
   font-weight: 700;
+}
+
+.comment-send--active {
+  opacity: 0.92;
+}
+
+.comment-send::after {
+  border: 0;
 }
 </style>

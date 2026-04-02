@@ -85,29 +85,36 @@
         <view class="category-content">
           <view class="category-head">
             <view class="category-head__main">
-              <text class="category-name" :style="textPrimaryStyle">{{ category.name }}</text>
+              <text class="category-name" :style="textPrimaryStyle">{{ getCategoryDisplayTitle(category) }}</text>
+              <text
+                v-if="getCategoryDisplayMeta(category)"
+                class="category-name-meta"
+                :style="textSecondaryStyle"
+              >
+                {{ getCategoryDisplayMeta(category) }}
+              </text>
               <text class="category-count" :style="textMutedStyle">{{ category.videoCount }} {{ '\u4e2a\u89c6\u9891' }}</text>
             </view>
-            <view
-              v-if="!isProtectedCategory(category.id)"
-              class="category-more"
-              :style="secondaryActionStyle"
-              @tap.stop="openCategoryActions(category)"
-            >
-              <text class="category-more__text" :style="textMutedStyle">{{ '\u7ba1\u7406' }}</text>
+            <view class="category-head__actions">
+              <view
+                v-if="canImportToCategory(category.id)"
+                class="category-more category-more--primary"
+                :style="primaryActionStyle"
+                @tap.stop="handleImport(category.id)"
+              >
+                <text class="category-more__text category-more__text--primary">{{ '\u5bfc\u5165' }}</text>
+              </view>
+              <view
+                v-if="!isProtectedCategory(category.id)"
+                class="category-more"
+                :style="secondaryActionStyle"
+                @tap.stop="openCategoryActions(category)"
+              >
+                <text class="category-more__text" :style="textMutedStyle">{{ '\u7ba1\u7406' }}</text>
+              </view>
             </view>
           </view>
           <text class="category-note" :style="textSecondaryStyle">{{ getCategoryNote(category) }}</text>
-          <view class="category-actions">
-            <view
-              v-if="canImportToCategory(category.id)"
-              class="action action--compact"
-              :style="primaryActionStyle"
-              @tap.stop="handleImport(category.id)"
-            >
-              <text class="action-text action-text--primary">{{ '\u5bfc\u5165' }}</text>
-            </view>
-          </view>
         </view>
       </view>
         </view>
@@ -439,6 +446,30 @@ function getCategoryNote(category: Category) {
   return category.videoCount
     ? '点开后可像相册一样查看此分类里的所有视频。'
     : '当前为空，可直接向该分类导入视频。'
+}
+
+function getCategoryDisplayTitle(category: Category) {
+  const parsed = parseImportedCategoryLabel(category.name)
+  return parsed?.title || category.name
+}
+
+function getCategoryDisplayMeta(category: Category) {
+  const parsed = parseImportedCategoryLabel(category.name)
+  return parsed?.meta || ''
+}
+
+function parseImportedCategoryLabel(name: string) {
+  const normalizedName = name.trim()
+  const match = normalizedName.match(/^((?:\u5907\u4efd\u5bfc\u5165)|(?:\u5bfc\u5165\u5907\u4efd))\s+(\d{2}-\d{2})\s+(\d{2}:\d{2})$/)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    title: match[1],
+    meta: `${match[2]} ${match[3]}`,
+  }
 }
 
 function openCreateCategory() {
@@ -1229,25 +1260,49 @@ eyebrow {
   min-width: 0;
 }
 
+.category-head__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-shrink: 0;
+}
+
 .category-name {
   display: block;
   font-size: 32rpx;
   font-weight: 700;
+  line-height: 1.25;
+}
+
+.category-name-meta {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
 }
 
 .category-more {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 104rpx;
-  min-height: 62rpx;
-  padding: 0 20rpx;
+  min-width: 92rpx;
+  min-height: 56rpx;
+  padding: 0 18rpx;
   border-radius: 9999rpx;
+}
+
+.category-more--primary {
+  box-shadow: 0 14rpx 30rpx rgba(86, 228, 114, 0.18);
 }
 
 .category-more__text,
 .sheet-close {
   font-size: 22rpx;
+}
+
+.category-more__text--primary {
+  color: #08110c;
+  font-weight: 700;
 }
 
 .sheet-mask {

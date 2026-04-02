@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '../constants/storage'
 import { DEFAULT_CATEGORY_ID } from '../repositories/library'
 import { getStorageItem, setStorageItem } from '../services/storage/kv'
 import { DEFAULT_THEME_ID, applyThemeChrome } from '../theme/presets'
-import type { GestureSettings, PlaybackMode, UserSettings } from '../types/domain'
+import type { GestureSettings, PlaybackEndAction, PlaybackMode, UserSettings } from '../types/domain'
 
 const defaultSettings: UserSettings = {
   passcode: '',
@@ -12,6 +12,7 @@ const defaultSettings: UserSettings = {
   theme: DEFAULT_THEME_ID,
   playbackCategoryId: DEFAULT_CATEGORY_ID,
   playbackMode: 'sequential',
+  playbackEndAction: 'next',
   likeWeight: 70,
   gestures: {
     doubleTapLike: true,
@@ -28,6 +29,7 @@ export const useUserStore = defineStore('user', () => {
   const theme = ref(storedSettings.theme || DEFAULT_THEME_ID)
   const playbackCategoryId = ref(storedSettings.playbackCategoryId)
   const playbackMode = ref<PlaybackMode>(storedSettings.playbackMode)
+  const playbackEndAction = ref<PlaybackEndAction>(storedSettings.playbackEndAction)
   const likeWeight = ref(storedSettings.likeWeight)
   const gestures = ref<GestureSettings>(storedSettings.gestures)
 
@@ -37,6 +39,7 @@ export const useUserStore = defineStore('user', () => {
     theme: theme.value,
     playbackCategoryId: playbackCategoryId.value,
     playbackMode: playbackMode.value,
+    playbackEndAction: playbackEndAction.value,
     likeWeight: likeWeight.value,
     gestures: gestures.value,
   }))
@@ -62,6 +65,11 @@ export const useUserStore = defineStore('user', () => {
 
   function setPlaybackMode(value: PlaybackMode) {
     playbackMode.value = value
+    persistSettings()
+  }
+
+  function setPlaybackEndAction(value: PlaybackEndAction) {
+    playbackEndAction.value = value
     persistSettings()
   }
 
@@ -91,6 +99,7 @@ export const useUserStore = defineStore('user', () => {
     theme.value = normalized.theme
     playbackCategoryId.value = normalized.playbackCategoryId
     playbackMode.value = normalized.playbackMode
+    playbackEndAction.value = normalized.playbackEndAction
     likeWeight.value = normalized.likeWeight
     gestures.value = normalized.gestures
     persistSettings()
@@ -106,6 +115,7 @@ export const useUserStore = defineStore('user', () => {
     theme,
     playbackCategoryId,
     playbackMode,
+    playbackEndAction,
     likeWeight,
     gestures,
     settings,
@@ -114,6 +124,7 @@ export const useUserStore = defineStore('user', () => {
     setTheme,
     setPlaybackCategory,
     setPlaybackMode,
+    setPlaybackEndAction,
     setLikeWeight,
     setGestureSetting,
     replaceSettings,
@@ -127,6 +138,7 @@ function normalizeSettings(settings?: Partial<UserSettings> | null): UserSetting
     theme: settings?.theme || DEFAULT_THEME_ID,
     playbackCategoryId: settings?.playbackCategoryId || DEFAULT_CATEGORY_ID,
     playbackMode: settings?.playbackMode === 'random' ? 'random' : 'sequential',
+    playbackEndAction: settings?.playbackEndAction === 'loop' ? 'loop' : 'next',
     likeWeight: normalizeLikeWeight(settings?.likeWeight),
     gestures: {
       doubleTapLike: settings?.gestures?.doubleTapLike ?? true,
