@@ -1028,8 +1028,9 @@ eyebrow {
   align-items: center;
   gap: 14rpx;
   margin-top: 18rpx;
-  padding: 0 22rpx;
-  min-height: 84rpx;
+  padding: 0 28rpx;
+  min-height: 92rpx;
+  border-radius: 9999rpx;
   flex-shrink: 0;
 }
 
@@ -1065,7 +1066,7 @@ eyebrow {
 .library-search__input {
   flex: 1;
   min-width: 0;
-  height: 84rpx;
+  height: 92rpx;
   font-size: 26rpx;
 }
 
@@ -1277,4 +1278,3 @@ eyebrow {
   margin-top: 28rpx;
 }
 </style>
-

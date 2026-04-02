@@ -108,6 +108,94 @@ export async function revealBackupFile(filePath: string) {
   return 'saved'
 }
 
+export async function saveBackupFileToDevice(filePath: string, fileName?: string) {
+  const miniProgramApi = typeof wx !== 'undefined' ? (wx as typeof wx & {
+    saveFileToDisk?: (options: {
+      filePath: string
+      fileName?: string
+      success?: () => void
+      fail?: (error: unknown) => void
+    }) => void
+  }) : null
+  const platform = getRuntimePlatform()
+
+  if (miniProgramApi?.saveFileToDisk && (platform === 'windows' || platform === 'mac' || platform === 'devtools')) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        miniProgramApi.saveFileToDisk?.({
+          filePath,
+          fileName,
+          success: () => resolve(),
+          fail: reject,
+        })
+      })
+    } catch (error) {
+      throw new Error(`saveFileToDisk failed: ${formatUnknownError(error)}`)
+    }
+
+    return 'saved-to-disk'
+  }
+
+  if (typeof wx !== 'undefined' && typeof wx.shareFileMessage === 'function') {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        wx.shareFileMessage({
+          filePath,
+          fileName,
+          success: () => resolve(),
+          fail: reject,
+        })
+      })
+    } catch (error) {
+      throw new Error(`shareFileMessage failed: ${formatUnknownError(error)}`)
+    }
+
+    return 'shared'
+  }
+
+  throw new Error('当前环境暂不支持保存备份文件')
+}
+
+function getRuntimePlatform() {
+  if (typeof wx !== 'undefined' && typeof wx.getDeviceInfo === 'function') {
+    try {
+      return wx.getDeviceInfo().platform || ''
+    } catch {
+      // fall through
+    }
+  }
+
+  if (typeof uni !== 'undefined' && typeof uni.getSystemInfoSync === 'function') {
+    try {
+      return uni.getSystemInfoSync().platform || ''
+    } catch {
+      return ''
+    }
+  }
+
+  return ''
+}
+
+function formatUnknownError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'string') {
+    return error
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return String(error)
+    }
+  }
+
+  return String(error)
+}
+
 function normalizeBackupPayload(payload?: Partial<BackupPayload> | null): BackupPayload {
   if (!payload || typeof payload !== 'object') {
     throw new Error('备份文件内容无效')

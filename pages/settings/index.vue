@@ -106,11 +106,14 @@
         导出当前分类、视频记录、评论和偏好为 JSON；导入时会追加到新的导入分类，并检测需要修复的视频源。
       </text>
       <view class="selection-grid">
-        <view class="selection-card glass-panel" :style="panelInlineStyle" @tap="handleExportBackup">
+        <view class="selection-card selection-card--export glass-panel" :style="panelInlineStyle" @tap="handleExportBackup">
           <text class="selection-card__title" :style="textPrimaryStyle">导出 JSON 备份</text>
           <text class="selection-card__copy" :style="textSecondaryStyle">
             {{ isBackupBusy ? backupBusyLabel : backupSummary }}
           </text>
+          <view class="selection-card__save-button" :style="[chipInlineStyle, activeCardStyle]" @tap.stop="handleSaveExportedBackup">
+            <text class="selection-card__save-button-text" :style="textPrimaryStyle">{{ '\u4fdd\u5b58' }}</text>
+          </view>
         </view>
         <view class="selection-card glass-panel" :style="panelInlineStyle" @tap="handleImportBackup">
           <text class="selection-card__title" :style="textPrimaryStyle">导入 JSON 恢复</text>
@@ -119,9 +122,18 @@
           </text>
         </view>
       </view>
-      <view class="backup-status glass-panel" :style="panelInlineStyle">
+      <view v-if="brokenVideoCount || backupStatus" class="backup-status glass-panel" :style="panelInlineStyle">
         <text class="backup-status__text" :style="textSecondaryStyle">{{ brokenVideoSummary }}</text>
         <text v-if="backupStatus" class="backup-status__text" :style="textMutedStyle">{{ backupStatus }}</text>
+        <view v-if="exportedBackupFilePath || brokenVideoCount" class="backup-status__actions">
+          <view
+            v-if="false"
+            class="backup-status__action"
+            :style="[chipInlineStyle, activeCardStyle]"
+            @tap="handleSaveExportedBackup"
+          >
+            <text class="backup-status__action-text" :style="textPrimaryStyle">{{ '\u4fdd\u5b58\u5230\u624b\u673a' }}</text>
+          </view>
         <view
           v-if="brokenVideoCount"
           class="backup-status__action"
@@ -129,6 +141,7 @@
           @tap="handleRepairBrokenVideos"
         >
           <text class="backup-status__action-text" :style="textPrimaryStyle">修复断链视频</text>
+        </view>
         </view>
       </view>
     </view>
@@ -187,6 +200,7 @@ import {
   importBackupFile,
   pickBackupFile,
   revealBackupFile,
+  saveBackupFileToDevice,
 } from '@/services/backup'
 import { useCommentStore } from '@/stores/comments'
 import { useLibraryStore } from '@/stores/library'
@@ -207,6 +221,8 @@ const isThemePickerOpen = ref(false)
 const backupBusyLabel = ref('')
 const backupStatus = ref('')
 const brokenVideoIds = ref<string[]>([])
+const exportedBackupFilePath = ref('')
+const exportedBackupFileName = ref('')
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -324,6 +340,8 @@ async function handleExportBackup() {
       comments: comments.value,
     })
     const result = await exportBackupFile(payload)
+    exportedBackupFilePath.value = result.filePath
+    exportedBackupFileName.value = result.fileName
 
     backupBusyLabel.value = '正在打开备份文件'
 
@@ -342,6 +360,56 @@ async function handleExportBackup() {
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : '导出备份失败',
+      icon: 'none',
+    })
+  } finally {
+    backupBusyLabel.value = ''
+  }
+}
+
+async function handleSaveExportedBackup() {
+  if (isBackupBusy.value) {
+    return
+  }
+
+  if (!exportedBackupFilePath.value) {
+    uni.showToast({
+      title: '\u8bf7\u5148\u5bfc\u51fa JSON \u5907\u4efd',
+      icon: 'none',
+    })
+    return
+  }
+
+  try {
+    backupBusyLabel.value = '\u6b63\u5728\u51c6\u5907\u4fdd\u5b58\u5907\u4efd'
+    const result = await saveBackupFileToDevice(exportedBackupFilePath.value, exportedBackupFileName.value)
+
+    backupStatus.value =
+      result === 'saved-to-disk'
+        ? '\u5907\u4efd\u6587\u4ef6\u5df2\u4fdd\u5b58\u5230\u672c\u5730'
+        : '\u5df2\u8c03\u8d77\u5fae\u4fe1\u6587\u4ef6\u53d1\u9001\uff0c\u8bf7\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b\u6216\u5176\u4ed6\u5b89\u5168\u4f4d\u7f6e\u540e\u518d\u4fdd\u5b58'
+
+    uni.showToast({
+      title:
+        result === 'saved-to-disk'
+          ? '\u5df2\u4fdd\u5b58'
+          : '\u8bf7\u7ee7\u7eed\u53d1\u9001\u4fdd\u5b58',
+      icon: 'none',
+    })
+  } catch (error) {
+    const diagnostics = [
+      `path=${exportedBackupFilePath.value || 'empty'}`,
+      `name=${exportedBackupFileName.value || 'empty'}`,
+      `platform=${getSaveBackupPlatform()}`,
+      `share=${typeof wx !== 'undefined' && typeof wx.shareFileMessage === 'function'}`,
+      `saveToDisk=${typeof wx !== 'undefined' && typeof (wx as typeof wx & { saveFileToDisk?: unknown }).saveFileToDisk === 'function'}`,
+      `error=${formatSaveBackupError(error)}`,
+    ].join(' | ')
+
+    backupStatus.value = `\u4fdd\u5b58\u5931\u8d25\uff1a${diagnostics}`
+    console.error('[backup-save]', diagnostics, error)
+    uni.showToast({
+      title: '\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u67e5\u770b\u4e0b\u65b9\u72b6\u6001',
       icon: 'none',
     })
   } finally {
@@ -533,6 +601,45 @@ function buildImportedCategoryName(exportedAt: number) {
 
   return `导入备份 ${month}-${day} ${hours}:${minutes}`
 }
+function getSaveBackupPlatform() {
+  if (typeof wx !== 'undefined' && typeof wx.getDeviceInfo === 'function') {
+    try {
+      return wx.getDeviceInfo().platform || 'unknown'
+    } catch {
+      // fall through
+    }
+  }
+
+  if (typeof uni !== 'undefined' && typeof uni.getSystemInfoSync === 'function') {
+    try {
+      return uni.getSystemInfoSync().platform || 'unknown'
+    } catch {
+      return 'unknown'
+    }
+  }
+
+  return 'unknown'
+}
+
+function formatSaveBackupError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'string') {
+    return error
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return String(error)
+    }
+  }
+
+  return String(error)
+}
 </script>
 
 <style scoped lang="scss">
@@ -652,6 +759,11 @@ function buildImportedCategoryName(exportedAt: number) {
   border: 2rpx solid transparent;
 }
 
+.selection-card--export {
+  position: relative;
+  padding-right: 168rpx;
+}
+
 .selection-card__title {
   display: block;
   font-size: 30rpx;
@@ -663,6 +775,26 @@ function buildImportedCategoryName(exportedAt: number) {
   margin-top: 10rpx;
   font-size: 24rpx;
   line-height: 1.6;
+}
+
+.selection-card__save-button {
+  position: absolute;
+  top: 50%;
+  right: 24rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 104rpx;
+  min-height: 64rpx;
+  padding: 0 24rpx;
+  border-radius: 9999rpx;
+  border: 2rpx solid transparent;
+  transform: translateY(-50%);
+}
+
+.selection-card__save-button-text {
+  font-size: 24rpx;
+  font-weight: 600;
 }
 
 .weight-card {
@@ -682,6 +814,12 @@ function buildImportedCategoryName(exportedAt: number) {
 .backup-status__text {
   font-size: 24rpx;
   line-height: 1.6;
+}
+
+.backup-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
 }
 
 .backup-status__action {
