@@ -11,10 +11,39 @@
         <text class="sheet-close" :style="textMutedStyle" @tap="$emit('close')">{{ '\u5173\u95ed' }}</text>
       </view>
 
-      <view v-if="allowImport" class="sheet-actions">
-        <view class="action-pill" :style="primaryActionStyle" @tap="$emit('import-category')">
+      <view v-if="allowImport || videos.length || batchMode" class="sheet-actions">
+        <view
+          v-if="allowImport && !batchMode"
+          class="action-pill"
+          :style="primaryActionStyle"
+          @tap="$emit('import-category')"
+        >
           <text class="action-pill__text action-pill__text--primary">{{ '\u5bfc\u5165\u5230\u6b64\u5206\u7c7b' }}</text>
         </view>
+
+        <template v-if="batchMode">
+          <view
+            class="action-pill action-pill--ghost"
+            :style="secondaryActionStyle"
+            @tap="$emit('toggle-select-all')"
+          >
+            <text class="action-pill__text" :style="textPrimaryStyle">
+              {{ allSelected ? '\u53d6\u6d88\u5168\u9009' : '\u5168\u9009' }}
+            </text>
+          </view>
+          <view class="action-pill" :style="dangerActionStyle" @tap="$emit('batch-delete')">
+            <text class="action-pill__text action-pill__text--danger">
+              {{ selectionCount ? `${'\u5220\u9664'} ${selectionCount}` : '\u5220\u9664' }}
+            </text>
+          </view>
+          <view
+            class="action-pill action-pill--ghost"
+            :style="secondaryActionStyle"
+            @tap="$emit('cancel-batch-delete')"
+          >
+            <text class="action-pill__text" :style="textPrimaryStyle">{{ '\u53d6\u6d88' }}</text>
+          </view>
+        </template>
       </view>
 
       <view v-if="videos.length" class="gallery-grid">
@@ -22,9 +51,16 @@
           v-for="video in videos"
           :key="video.id"
           class="gallery-item glass-panel"
-          :style="cardStyle"
-          @tap="$emit('select-video', video.id)"
+          :class="{ 'gallery-item--selected': batchMode && selectedVideoIds.includes(video.id) }"
+          :style="batchMode && selectedVideoIds.includes(video.id) ? [cardStyle, selectedCardStyle] : cardStyle"
+          @tap="handleVideoTap(video.id)"
+          @longpress="handleVideoLongPress(video.id)"
         >
+          <view v-if="batchMode" class="gallery-item__check" :style="checkStyle">
+            <text class="gallery-item__check-icon">
+              {{ selectedVideoIds.includes(video.id) ? '\u2713' : '' }}
+            </text>
+          </view>
           <view class="gallery-item__cover" :style="buildPosterStyle(video.posterPath)">
             <text v-if="!video.posterPath" class="gallery-item__fallback">VIDEO</text>
           </view>
@@ -44,28 +80,63 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { VideoAsset } from '@/types/domain'
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   title: string
   subtitle: string
   videos: VideoAsset[]
   allowImport: boolean
+  batchMode: boolean
+  selectedVideoIds: string[]
+  selectionCount: number
+  allSelected: boolean
   sheetStyle: Record<string, string>
   cardStyle: Record<string, string>
   textPrimaryStyle: Record<string, string>
   textSecondaryStyle: Record<string, string>
   textMutedStyle: Record<string, string>
   primaryActionStyle: Record<string, string>
+  secondaryActionStyle: Record<string, string>
+  dangerActionStyle: Record<string, string>
   durationBadgeStyle: Record<string, string>
+  selectedCardStyle: Record<string, string>
+  checkStyle: Record<string, string>
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'close'): void
   (event: 'import-category'): void
   (event: 'select-video', videoId: string): void
+  (event: 'enter-batch-mode', videoId: string): void
+  (event: 'toggle-select-all'): void
+  (event: 'cancel-batch-delete'): void
+  (event: 'batch-delete'): void
+  (event: 'toggle-video-selection', videoId: string): void
 }>()
+
+const pendingLongPressVideoId = ref('')
+
+function handleVideoTap(videoId: string) {
+  if (pendingLongPressVideoId.value === videoId) {
+    pendingLongPressVideoId.value = ''
+    return
+  }
+
+  if (props.batchMode) {
+    emit('toggle-video-selection', videoId)
+    return
+  }
+
+  emit('select-video', videoId)
+}
+
+function handleVideoLongPress(videoId: string) {
+  pendingLongPressVideoId.value = videoId
+  emit('enter-batch-mode', videoId)
+}
 
 function buildPosterStyle(posterPath: string) {
   if (!posterPath) {
@@ -157,6 +228,9 @@ function formatDate(timestamp: number) {
 
 .sheet-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16rpx;
   margin-top: 24rpx;
 }
 
@@ -164,18 +238,29 @@ function formatDate(timestamp: number) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 220rpx;
+  min-width: 0;
   min-height: 80rpx;
-  padding: 0 28rpx;
+  padding: 0 24rpx;
   border-radius: 9999rpx;
+  flex: 1 1 0;
+}
+
+.action-pill--ghost {
+  flex: 1 1 0;
 }
 
 .action-pill__text {
-  font-size: 24rpx;
+  font-size: 22rpx;
+  white-space: nowrap;
 }
 
 .action-pill__text--primary {
   color: #08110c;
+  font-weight: 700;
+}
+
+.action-pill__text--danger {
+  color: #ffffff;
   font-weight: 700;
 }
 
@@ -192,6 +277,30 @@ function formatDate(timestamp: number) {
   position: relative;
   padding: 12rpx;
   border-radius: 26rpx;
+}
+
+.gallery-item--selected {
+  transform: translateY(-2rpx);
+}
+
+.gallery-item__check {
+  position: absolute;
+  top: 20rpx;
+  left: 20rpx;
+  z-index: 2;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 9999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-item__check-icon {
+  color: #08110c;
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .gallery-item__cover {

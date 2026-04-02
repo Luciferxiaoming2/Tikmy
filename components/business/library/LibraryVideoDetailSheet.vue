@@ -5,10 +5,10 @@
       <view class="sheet-handle" />
       <view class="sheet-header">
         <view class="sheet-header__main">
-          <text class="sheet-title" :style="textPrimaryStyle">视频详情</text>
+          <text class="sheet-title" :style="textPrimaryStyle">{{ '\u89c6\u9891\u8be6\u60c5' }}</text>
           <text class="sheet-subtitle" :style="textMutedStyle">{{ categoryName }}</text>
         </view>
-        <text class="sheet-close" :style="textMutedStyle" @tap="$emit('close')">关闭</text>
+        <text class="sheet-close" :style="textMutedStyle" @tap="$emit('close')">{{ '\u5173\u95ed' }}</text>
       </view>
 
       <view class="preview-card glass-panel" :style="cardStyle">
@@ -19,39 +19,36 @@
 
       <view class="info-list glass-panel" :style="cardStyle">
         <view class="info-row">
-          <text class="info-row__label" :style="textMutedStyle">时长</text>
+          <text class="info-row__label" :style="textMutedStyle">{{ '\u65f6\u957f' }}</text>
           <text class="info-row__value" :style="textPrimaryStyle">{{ formatDuration(video.duration) }}</text>
         </view>
         <view class="info-row">
-          <text class="info-row__label" :style="textMutedStyle">播放次数</text>
+          <text class="info-row__label" :style="textMutedStyle">{{ '\u64ad\u653e\u6b21\u6570' }}</text>
           <text class="info-row__value" :style="textPrimaryStyle">{{ video.playCount }}</text>
         </view>
         <view class="info-row">
-          <text class="info-row__label" :style="textMutedStyle">累计观看</text>
+          <text class="info-row__label" :style="textMutedStyle">{{ '\u7d2f\u8ba1\u89c2\u770b' }}</text>
           <text class="info-row__value" :style="textPrimaryStyle">{{ formatWatchTime(video.totalWatchTime) }}</text>
         </view>
         <view class="info-row">
-          <text class="info-row__label" :style="textMutedStyle">本地文件</text>
+          <text class="info-row__label" :style="textMutedStyle">{{ '\u672c\u5730\u8def\u5f84' }}</text>
           <text class="info-row__value info-row__value--path" :style="textPrimaryStyle">{{ video.localPath }}</text>
         </view>
         <view v-if="video.importHint" class="info-row">
-          <text class="info-row__label" :style="textMutedStyle">兼容性提示</text>
+          <text class="info-row__label" :style="textMutedStyle">{{ '\u517c\u5bb9\u6027\u63d0\u793a' }}</text>
           <text class="info-row__value info-row__value--path" :style="textPrimaryStyle">{{ video.importHint }}</text>
         </view>
       </view>
 
       <view class="action-list">
         <view class="action-row" :style="primaryActionStyle" @tap="$emit('copy')">
-          <text class="action-row__text action-row__text--primary">复制到其他分类</text>
+          <text class="action-row__text action-row__text--primary">{{ '\u590d\u5236\u5230\u5176\u4ed6\u5206\u7c7b' }}</text>
         </view>
         <view class="action-row" :style="secondaryActionStyle" @tap="$emit('move')">
-          <text class="action-row__text" :style="textPrimaryStyle">移动到其他分类</text>
+          <text class="action-row__text" :style="textPrimaryStyle">{{ '\u79fb\u52a8\u5230\u5176\u4ed6\u5206\u7c7b' }}</text>
         </view>
         <view class="action-row" :style="secondaryActionStyle" @tap="$emit('download')">
-          <text class="action-row__text" :style="textPrimaryStyle">下载到本地</text>
-        </view>
-        <view class="action-row action-row--danger" @tap="$emit('delete')">
-          <text class="action-row__text action-row__text--danger">删除视频</text>
+          <text class="action-row__text" :style="textPrimaryStyle">{{ '\u4fdd\u5b58\u5230\u672c\u5730' }}</text>
         </view>
       </view>
     </view>
@@ -78,7 +75,6 @@ defineEmits<{
   (event: 'copy'): void
   (event: 'move'): void
   (event: 'download'): void
-  (event: 'delete'): void
 }>()
 
 function buildPosterStyle(posterPath: string) {
@@ -103,10 +99,10 @@ function formatDuration(duration: number) {
 
 function formatWatchTime(seconds: number) {
   if (seconds < 60) {
-    return `${Math.round(seconds)} 秒`
+    return `${Math.round(seconds)} ${'\u79d2'}`
   }
 
-  return `${(seconds / 60).toFixed(1)} 分钟`
+  return `${(seconds / 60).toFixed(1)} ${'\u5206\u949f'}`
 }
 </script>
 
@@ -242,16 +238,6 @@ function formatWatchTime(seconds: number) {
 
 .action-row__text--primary {
   color: #08110c;
-  font-weight: 700;
-}
-
-.action-row--danger {
-  background: rgba(255, 94, 87, 0.12);
-  border: 1rpx solid rgba(255, 94, 87, 0.24);
-}
-
-.action-row__text--danger {
-  color: #ff5e57;
   font-weight: 700;
 }
 </style>

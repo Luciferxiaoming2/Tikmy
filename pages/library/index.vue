@@ -140,16 +140,29 @@
       :subtitle="gallerySubtitle"
       :videos="activeCategoryVideos"
       :allow-import="canImportToCategory(activeCategory?.id || '')"
+      :batch-mode="isGalleryBatchMode"
+      :selected-video-ids="selectedGalleryVideoIds"
+      :selection-count="selectedGalleryVideoIds.length"
+      :all-selected="allGalleryVideosSelected"
       :sheet-style="sheetInlineStyle"
       :card-style="panelInlineStyle"
       :text-primary-style="textPrimaryStyle"
       :text-secondary-style="textSecondaryStyle"
       :text-muted-style="textMutedStyle"
       :primary-action-style="primaryActionStyle"
+      :secondary-action-style="secondaryActionStyle"
+      :danger-action-style="dangerActionStyle"
       :duration-badge-style="durationBadgeStyle"
+      :selected-card-style="selectedGalleryCardStyle"
+      :check-style="selectedGalleryCheckStyle"
       @close="closeGallerySheet"
       @import-category="handleGalleryImport"
       @select-video="openVideoDetail"
+      @enter-batch-mode="enterGalleryBatchMode"
+      @toggle-select-all="toggleSelectAllGalleryVideos"
+      @cancel-batch-delete="cancelGalleryBatchDelete"
+      @batch-delete="confirmBatchDeleteVideos"
+      @toggle-video-selection="toggleGalleryVideoSelection"
     />
 
     <LibraryVideoDetailSheet
@@ -166,7 +179,6 @@
       @copy="startVideoTransfer('copy')"
       @move="startVideoTransfer('move')"
       @download="handleVideoDownload"
-      @delete="confirmDeleteVideo"
     />
   </view>
 </template>
@@ -221,6 +233,8 @@ const showGallerySheet = ref(false)
 const showVideoDetailSheet = ref(false)
 const activeVideoId = ref('')
 const isImporting = ref(false)
+const isGalleryBatchMode = ref(false)
+const selectedGalleryVideoIds = ref<string[]>([])
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -251,6 +265,11 @@ const secondaryActionStyle = computed(() => ({
   background: 'transparent',
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
 }))
+const dangerActionStyle = computed(() => ({
+  background: '#ff5e57',
+  border: '1rpx solid #ff5e57',
+  boxShadow: '0 16rpx 40rpx rgba(255, 94, 87, 0.28)',
+}))
 const inputInlineStyle = computed(() => ({
   color: activeTheme.value.textPrimary,
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
@@ -263,6 +282,15 @@ const durationBadgeStyle = computed(() => ({
 const warningPanelStyle = computed(() => ({
   background: 'rgba(255, 91, 87, 0.12)',
   border: '1rpx solid rgba(255, 91, 87, 0.24)',
+  boxShadow: activeTheme.value.shadowSoft,
+}))
+const selectedGalleryCardStyle = computed(() => ({
+  border: `1rpx solid ${activeTheme.value.primary}`,
+  boxShadow: `0 0 0 2rpx ${activeTheme.value.primary} inset`,
+}))
+const selectedGalleryCheckStyle = computed(() => ({
+  background: activeTheme.value.primary,
+  border: `1rpx solid ${activeTheme.value.primary}`,
   boxShadow: activeTheme.value.shadowSoft,
 }))
 const categoryListShellStyle = computed(() => ({
@@ -293,6 +321,12 @@ const activeVideo = computed(
   () => activeCategoryVideos.value.find((video) => video.id === activeVideoId.value) || null,
 )
 const gallerySubtitle = computed(() => `${activeCategoryVideos.value.length} 个视频 · 点击封面查看详情`)
+
+const allGalleryVideosSelected = computed(
+  () =>
+    Boolean(activeCategoryVideos.value.length) &&
+    selectedGalleryVideoIds.value.length === activeCategoryVideos.value.length,
+)
 
 onShow(() => {
   void refreshStorageUsage()
@@ -415,6 +449,8 @@ function confirmDeleteCategory() {
 function openCategoryGallery(category: Category) {
   activeCategory.value = category
   activeVideoId.value = ''
+  isGalleryBatchMode.value = false
+  selectedGalleryVideoIds.value = []
   showGallerySheet.value = true
 }
 
@@ -422,6 +458,8 @@ function closeGallerySheet() {
   showGallerySheet.value = false
   showVideoDetailSheet.value = false
   activeVideoId.value = ''
+  isGalleryBatchMode.value = false
+  selectedGalleryVideoIds.value = []
 }
 
 function openVideoDetail(videoId: string) {
@@ -432,6 +470,36 @@ function openVideoDetail(videoId: string) {
 function closeVideoDetailSheet() {
   showVideoDetailSheet.value = false
   activeVideoId.value = ''
+}
+
+function enterGalleryBatchMode(videoId: string) {
+  isGalleryBatchMode.value = true
+  selectedGalleryVideoIds.value = videoId ? [videoId] : []
+}
+
+function cancelGalleryBatchDelete() {
+  isGalleryBatchMode.value = false
+  selectedGalleryVideoIds.value = []
+}
+
+function toggleSelectAllGalleryVideos() {
+  if (!isGalleryBatchMode.value) {
+    return
+  }
+
+  selectedGalleryVideoIds.value = allGalleryVideosSelected.value
+    ? []
+    : activeCategoryVideos.value.map((video) => video.id)
+}
+
+function toggleGalleryVideoSelection(videoId: string) {
+  if (!isGalleryBatchMode.value) {
+    return
+  }
+
+  selectedGalleryVideoIds.value = selectedGalleryVideoIds.value.includes(videoId)
+    ? selectedGalleryVideoIds.value.filter((id) => id !== videoId)
+    : [...selectedGalleryVideoIds.value, videoId]
 }
 
 async function importToCategory(categoryId: string) {
@@ -652,6 +720,83 @@ async function handleDeleteVideo(video: VideoAsset) {
       title: error instanceof Error ? error.message : '删除视频失败',
       icon: 'none',
     })
+  }
+}
+
+function confirmBatchDeleteVideos() {
+  const selectedVideos = activeCategoryVideos.value.filter((video) => selectedGalleryVideoIds.value.includes(video.id))
+
+  if (!selectedVideos.length) {
+    uni.showToast({
+      title: '\u8bf7\u5148\u9009\u62e9\u8981\u5220\u9664\u7684\u89c6\u9891',
+      icon: 'none',
+    })
+    return
+  }
+
+  uni.showModal({
+    title: '\u6279\u91cf\u5220\u9664\u89c6\u9891',
+    content: `\u786e\u8ba4\u5220\u9664\u5df2\u9009\u7684 ${selectedVideos.length} \u4e2a\u89c6\u9891\u5417\uff1f\u5220\u9664\u540e\u4e0d\u53ef\u64a4\u9500\u3002`,
+    confirmColor: '#ff5e57',
+    success: ({ confirm }) => {
+      if (!confirm) {
+        return
+      }
+
+      void handleBatchDeleteVideos(selectedVideos)
+    },
+  })
+}
+
+async function handleBatchDeleteVideos(targetVideos: VideoAsset[]) {
+  try {
+    const pathUsageMap = new Map<string, number>()
+    const selectedPathCountMap = new Map<string, number>()
+
+    for (const video of videos.value) {
+      pathUsageMap.set(video.localPath, (pathUsageMap.get(video.localPath) || 0) + 1)
+    }
+
+    for (const video of targetVideos) {
+      selectedPathCountMap.set(video.localPath, (selectedPathCountMap.get(video.localPath) || 0) + 1)
+    }
+
+    for (const [index, video] of targetVideos.entries()) {
+      uni.showLoading({
+        title: `\u5220\u9664 ${index + 1}/${targetVideos.length}`,
+        mask: true,
+      })
+
+      libraryStore.deleteVideo(video.id)
+
+      if (activeVideoId.value === video.id) {
+        activeVideoId.value = ''
+        showVideoDetailSheet.value = false
+      }
+    }
+
+    for (const [localPath, selectedCount] of selectedPathCountMap.entries()) {
+      const totalCount = pathUsageMap.get(localPath) || 0
+
+      if (totalCount === selectedCount) {
+        await removePersistedFile(localPath)
+      }
+    }
+
+    await refreshStorageUsage()
+    cancelGalleryBatchDelete()
+
+    uni.showToast({
+      title: `\u5df2\u5220\u9664 ${targetVideos.length} \u4e2a\u89c6\u9891`,
+      icon: 'success',
+    })
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '\u6279\u91cf\u5220\u9664\u5931\u8d25',
+      icon: 'none',
+    })
+  } finally {
+    uni.hideLoading()
   }
 }
 
