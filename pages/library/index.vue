@@ -1,11 +1,8 @@
 ﻿<template>
   <view :class="['page-shell', 'mt-page', themeClass]" :style="pageInlineStyle">
     <view class="page-header">
-      <text class="eyebrow" :style="accentStyle">LIBRARY</text>
       <text class="title" :style="textPrimaryStyle">{{ '\u7d20\u6750\u5e93' }}</text>
-      <text class="description" :style="textSecondaryStyle">
-        {{ '\u5148\u5b8c\u6210\u5206\u7c7b\u7ba1\u7406\u548c\u672c\u5730\u89c6\u9891\u5bfc\u5165\uff0c\u518d\u5728\u5206\u7c7b\u91cc\u50cf\u76f8\u518c\u4e00\u6837\u6574\u7406\u6240\u6709\u89c6\u9891\u3002' }}
-      </text>
+      <text class="welcome" :style="textMutedStyle">{{ '\u6b22\u8fce\u4f7f\u7528 MyTik\uff0c\u5f00\u59cb\u6574\u7406\u4f60\u7684\u672c\u5730\u89c6\u9891\u3002' }}</text>
     </view>
 
     <view class="hero glass-panel" :style="panelInlineStyle">
@@ -108,7 +105,7 @@
               :style="primaryActionStyle"
               @tap.stop="handleImport(category.id)"
             >
-              <text class="action-text action-text--primary">{{ '\u5bfc\u5165\u5230\u6b64\u5206\u7c7b' }}</text>
+              <text class="action-text action-text--primary">{{ '\u5bfc\u5165' }}</text>
             </view>
           </view>
         </view>
@@ -118,10 +115,10 @@
     </view>
 
     <view v-if="showCategorySheet" class="sheet-mask" @tap="closeCategorySheet" />
-    <view :class="['sheet-panel', showCategorySheet ? 'sheet-panel--open' : '']" :style="sheetInlineStyle">
+    <view :class="['sheet-panel', showCategorySheet ? 'sheet-panel--open' : '']" :style="categorySheetStyle">
       <view class="sheet-handle" />
       <view class="sheet-header">
-        <text class="sheet-title" :style="textPrimaryStyle">{{ sheetTitle }}</text>
+        <text class="sheet-title" :style="textPrimaryStyle">{{ categorySheetTitle }}</text>
         <text class="sheet-close" :style="textMutedStyle" @tap="closeCategorySheet">{{ '\u5173\u95ed' }}</text>
       </view>
 
@@ -134,8 +131,12 @@
           maxlength="20"
           :placeholder="categoryNamePlaceholder"
           placeholder-style="color: #8e8e93;"
-          :focus="showCategorySheet"
+          :focus="isCategoryInputFocused"
           confirm-type="done"
+          :adjust-position="false"
+          @focus="handleCategoryInputFocus"
+          @blur="handleCategoryInputBlur"
+          @keyboardheightchange="handleCategoryKeyboardHeightChange"
           @confirm="submitCategoryForm"
         />
         <text class="sheet-hint" :style="textMutedStyle">{{ '\u4f8b\u5982\uff1a\u65c5\u884c\u3001\u97f3\u4e50\u3001\u6536\u85cf\u3001\u7ec3\u4e60\u7d20\u6750' }}</text>
@@ -152,8 +153,8 @@
       </view>
 
       <view v-if="sheetMode === 'form'" class="sheet-footer">
-        <view class="action action--sheet" :style="primaryActionStyle" @tap="submitCategoryForm">
-          <text class="action-text action-text--primary">{{ sheetSubmitLabel }}</text>
+        <view class="action action--sheet" :style="primaryActionStyle" @tap="handleCategorySubmitTap">
+          <text class="action-text action-text--primary">{{ categorySheetSubmitLabel }}</text>
         </view>
       </view>
     </view>
@@ -180,6 +181,7 @@
       :selected-card-style="selectedGalleryCardStyle"
       :check-style="selectedGalleryCheckStyle"
       @close="closeGallerySheet"
+      @import-category="handleGalleryImport"
       :category-name="activeCategory?.name || '\u5168\u90e8'"
       @select-video="openVideoDetail"
       @enter-batch-mode="enterGalleryBatchMode"
@@ -231,7 +233,6 @@ import type { Category, VideoAsset } from '@/types/domain'
 type CategorySheetMode = 'form' | 'actions'
 type CategoryFormMode = 'create' | 'rename'
 type VideoTransferMode = 'copy' | 'move'
-
 const DEFAULT_IMPORT_CATEGORY_ID = DEFAULT_CATEGORY_ID
 const protectedCategoryIds = [DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID]
 const categorySearchPlaceholder = '\u641c\u7d22\u5206\u7c7b'
@@ -259,11 +260,23 @@ const showVideoDetailSheet = ref(false)
 const activeVideoId = ref('')
 const isImporting = ref(false)
 const categorySearchKeyword = ref('')
+const categoryKeyboardHeight = ref(0)
+const isCategoryInputFocused = ref(false)
 const isGalleryBatchMode = ref(false)
 const selectedGalleryVideoIds = ref<string[]>([])
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
+const categorySheetTitle = computed(() => {
+  if (sheetMode.value === 'actions') {
+    return activeCategory.value?.name || '\u5206\u7c7b\u7ba1\u7406'
+  }
+
+  return formMode.value === 'create' ? '\u521b\u5efa\u5206\u7c7b' : '\u91cd\u547d\u540d\u5206\u7c7b'
+})
+const categorySheetSubmitLabel = computed(() =>
+  formMode.value === 'create' ? '\u4fdd\u5b58\u5206\u7c7b' : '\u66f4\u65b0\u5206\u7c7b',
+)
 const pageInlineStyle = computed(() => ({
   background: activeTheme.value.pageBackground,
   color: activeTheme.value.textPrimary,
@@ -278,6 +291,14 @@ const sheetInlineStyle = computed(() => ({
   background: activeTheme.value.surfaceHighest,
   boxShadow: activeTheme.value.shadowSoft,
   borderTop: `1rpx solid ${activeTheme.value.borderSubtle}`,
+}))
+const categorySheetStyle = computed(() => ({
+  ...sheetInlineStyle.value,
+  transform: showCategorySheet.value ? 'translateY(0)' : 'translateY(102%)',
+  paddingBottom:
+    categoryKeyboardHeight.value > 0
+      ? `calc(${categoryKeyboardHeight.value}px + 34rpx + env(safe-area-inset-bottom))`
+      : 'calc(34rpx + env(safe-area-inset-bottom))',
 }))
 const textPrimaryStyle = computed(() => ({ color: activeTheme.value.textPrimary }))
 const textSecondaryStyle = computed(() => ({ color: activeTheme.value.textSecondary }))
@@ -425,6 +446,7 @@ function openCreateCategory() {
   sheetMode.value = 'form'
   activeCategory.value = null
   categoryDraftName.value = ''
+  isCategoryInputFocused.value = false
   showCategorySheet.value = true
 }
 
@@ -442,6 +464,7 @@ function startRenameCategory() {
   formMode.value = 'rename'
   sheetMode.value = 'form'
   categoryDraftName.value = activeCategory.value.name
+  isCategoryInputFocused.value = false
 }
 
 function closeCategorySheet() {
@@ -449,7 +472,35 @@ function closeCategorySheet() {
   sheetMode.value = 'form'
   formMode.value = 'create'
   categoryDraftName.value = ''
+  categoryKeyboardHeight.value = 0
+  isCategoryInputFocused.value = false
   activeCategory.value = null
+}
+
+function handleCategoryInputFocus() {
+  isCategoryInputFocused.value = true
+}
+
+function handleCategoryInputBlur() {
+  isCategoryInputFocused.value = false
+  categoryKeyboardHeight.value = 0
+}
+
+function handleCategoryKeyboardHeightChange(event: Event & { detail?: { height?: number } }) {
+  categoryKeyboardHeight.value = Number(event.detail?.height || 0)
+}
+
+function handleCategorySubmitTap() {
+  if (isCategoryInputFocused.value) {
+    isCategoryInputFocused.value = false
+    categoryKeyboardHeight.value = 0
+    setTimeout(() => {
+      submitCategoryForm()
+    }, 120)
+    return
+  }
+
+  submitCategoryForm()
 }
 
 function submitCategoryForm() {
@@ -608,7 +659,7 @@ async function importToCategory(categoryId: string) {
 
     for (const [index, file] of mediaFiles.entries()) {
       uni.showLoading({
-        title: `导入 ${index + 1}/${total}`,
+        title: `导入中 ${index + 1}/${total}`,
         mask: true,
       })
 
@@ -623,7 +674,7 @@ async function importToCategory(categoryId: string) {
     const imported = libraryStore.addVideosToCategory(categoryId, persistedMediaFiles)
     await refreshStorageUsage()
 
-    const riskyVideos = imported.filter((video) => video.importHint)
+    const riskyVideos = imported.filter((video) => video.importHint || !video.posterPath)
 
     uni.showToast({
       title: `已导入 ${imported.length} 个视频`,
@@ -633,7 +684,7 @@ async function importToCategory(categoryId: string) {
     if (riskyVideos.length) {
       uni.showModal({
         title: '导入完成',
-        content: `其中 ${riskyVideos.length} 个视频可能存在微信小程序兼容性问题，若播放时只有声音没有画面，建议转为 H.264 编码的 MP4 后再导入。`,
+        content: `其中 ${riskyVideos.length} 个视频可能存在微信小程序兼容性问题，若出现无预览画面或播放异常，建议转为 H.264 编码的 MP4 后再导入。`,
         showCancel: false,
       })
     }
@@ -645,7 +696,7 @@ async function importToCategory(categoryId: string) {
     }
 
     uni.showToast({
-      title: '导入视频失败',
+      title: message || '导入视频失败',
       icon: 'none',
     })
   } finally {
@@ -918,6 +969,11 @@ eyebrow {
 .title {
   font-size: 56rpx;
   font-weight: 700;
+}
+
+.welcome {
+  font-size: 24rpx;
+  line-height: 1.5;
 }
 
 .description {

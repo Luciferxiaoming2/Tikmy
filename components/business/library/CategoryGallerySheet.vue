@@ -18,7 +18,7 @@
           :style="primaryActionStyle"
           @tap="$emit('import-category')"
         >
-          <text class="action-pill__text action-pill__text--primary">{{ '\u5bfc\u5165\u5230\u6b64\u5206\u7c7b' }}</text>
+          <text class="action-pill__text action-pill__text--primary">{{ '\u5bfc\u5165' }}</text>
         </view>
 
         <template v-if="batchMode">

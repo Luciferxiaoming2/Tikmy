@@ -2,12 +2,12 @@
   <view class="panel glass-panel" :style="panelStyle" @tap.stop>
     <view class="panel-header">
       <view class="panel-header__main">
-        <text class="panel-title" :style="textPrimaryStyle">我的评论</text>
+        <text class="panel-title" :style="textPrimaryStyle">{{ '\u6211\u7684\u8bc4\u8bba' }}</text>
         <text class="panel-meta" :style="textSecondaryStyle">
-          {{ comments.length ? `${comments.length} 条记录` : '还没有评论' }}
+          {{ comments.length ? `${comments.length} \u6761\u8bb0\u5f55` : '\u8fd8\u6ca1\u6709\u8bc4\u8bba' }}
         </text>
       </view>
-      <text class="panel-close" :style="textMutedStyle" @tap="emit('close')">关闭</text>
+      <text class="panel-close" :style="textMutedStyle" @tap="emit('close')">{{ '\u5173\u95ed' }}</text>
     </view>
 
     <view class="panel-body">
@@ -17,7 +17,9 @@
           <text class="comment-item__content" :style="textPrimaryStyle">{{ comment.content }}</text>
         </view>
       </view>
-      <text v-else class="comment-empty" :style="textMutedStyle">发一条给未来再次刷到的自己。</text>
+      <text v-else class="comment-empty" :style="textMutedStyle">
+        {{ '\u53d1\u4e00\u6761\u7ed9\u672a\u6765\u518d\u6b21\u5237\u5230\u7684\u81ea\u5df1\u3002' }}
+      </text>
 
       <view v-if="active" class="comment-editor">
         <input
@@ -25,14 +27,23 @@
           class="comment-input"
           :style="inputStyle"
           maxlength="40"
-          placeholder="写一句想在下次刷到时看到的话"
+          :placeholder="'\u5199\u4e00\u53e5\u60f3\u5728\u4e0b\u6b21\u5237\u5230\u65f6\u770b\u5230\u7684\u8bdd'"
           placeholder-style="color: #8e8e93;"
           confirm-type="send"
+          :adjust-position="false"
+          :cursor-spacing="20"
           @input="handleInput"
-          @confirm="emit('submit')"
+          @focus="handleInputFocus"
+          @blur="handleInputBlur"
+          @confirm="handleSubmitTap"
         />
-        <view class="comment-send" :style="primaryActionStyle" @tap="emit('submit')">
-          <text class="comment-send__text">发送</text>
+        <view
+          class="comment-send"
+          :style="primaryActionStyle"
+          @tap.stop="handleSubmitTap"
+          @touchend.stop="handleSubmitTap"
+        >
+          <text class="comment-send__text">{{ '\u53d1\u9001' }}</text>
         </view>
       </view>
     </view>
@@ -40,6 +51,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+
 defineProps<{
   active: boolean
   draft: string
@@ -59,8 +72,30 @@ const emit = defineEmits<{
   (event: 'update:draft', value: string): void
 }>()
 
+const isInputFocused = ref(false)
+
 function handleInput(event: Event & { detail?: { value?: string } }) {
   emit('update:draft', event.detail?.value || '')
+}
+
+function handleInputFocus() {
+  isInputFocused.value = true
+}
+
+function handleInputBlur() {
+  isInputFocused.value = false
+}
+
+function handleSubmitTap() {
+  if (isInputFocused.value) {
+    isInputFocused.value = false
+    setTimeout(() => {
+      emit('submit')
+    }, 80)
+    return
+  }
+
+  emit('submit')
 }
 </script>
 

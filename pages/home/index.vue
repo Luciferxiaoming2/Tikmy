@@ -23,11 +23,15 @@
           class="video-stage"
           @tap="handleStageTap(video.id)"
           @longpress="handleStageLongPress(video.id)"
+          @touchstart="handleStageTouchStart(video.id, $event)"
+          @touchmove="handleStageTouchMove(video.id, $event)"
           @touchend="handleStageTouchEnd(video.id)"
+          @touchcancel="handleStageTouchEnd(video.id)"
         >
           <video
             :id="videoDomId(video.id)"
             class="video-player"
+            :style="videoPlayerInlineStyle(video.id)"
             :src="video.localPath"
             :poster="video.posterPath || undefined"
             :show-center-play-btn="false"
@@ -46,6 +50,17 @@
           />
 
           <view class="video-scrim" />
+
+          <view v-if="video.id === activeVideoId" class="danmaku-layer">
+            <view
+              v-for="item in activeDanmakuItems"
+              :key="item.id"
+              class="danmaku-item"
+              :style="item.style"
+            >
+              <text class="danmaku-item__text">{{ item.content }}</text>
+            </view>
+          </view>
 
           <HomeActionRail
             :liked="video.isLiked"
@@ -268,10 +283,15 @@
         :category-name="categoryNameFor(activeVideo.categoryId)"
         :stats-text="infoStatsText"
         :hint="gestureHint"
+        :danmaku-speed="danmakuSpeed"
         :panel-style="summaryStyle"
         :text-primary-style="textPrimaryStyle"
         :text-secondary-style="textSecondaryStyle"
         :text-muted-style="textMutedStyle"
+        :active-chip-style="danmakuSpeedChipActiveStyle"
+        :inactive-chip-style="danmakuSpeedChipStyle"
+        :active-chip-text-style="danmakuSpeedChipTextStyle"
+        @change-danmaku-speed="handleDanmakuSpeedChange"
         @close="closeSheet"
       />
 
@@ -355,6 +375,15 @@ const isPageVisible = ref(false)
 const compatibilityPromptedVideoIds = ref<string[]>([])
 const playbackSyncToken = ref(0)
 const isVideoFullscreen = ref(false)
+const zoomScale = ref(1)
+const pinchStartDistance = ref(0)
+const pinchStartScale = ref(1)
+const pinchZoomVideoId = ref('')
+const suppressTapAfterPinch = ref(false)
+const activeDanmakuItems = ref<Array<{ id: string; content: string; style: Record<string, string> }>>([])
+const danmakuSequence = ref(0)
+const danmakuLaneCursor = ref(0)
+const danmakuSpeed = ref<'slow' | 'normal' | 'fast'>('normal')
 
 const activeTheme = computed(() => getThemeOption(theme.value))
 const themeClass = computed(() => `theme--${theme.value}`)
@@ -385,10 +414,24 @@ const inputInlineStyle = computed(() => ({
   background: activeTheme.value.themeOptionBackground,
 }))
 const sideButtonStyle = computed(() => ({
-  background: activeTheme.value.surface,
+  background: 'transparent',
   border: `1rpx solid ${activeTheme.value.borderSubtle}`,
-  boxShadow: activeTheme.value.shadowSoft,
-  backdropFilter: 'blur(20px)',
+  boxShadow: 'none',
+  backdropFilter: 'none',
+}))
+const danmakuSpeedChipStyle = computed(() => ({
+  background: 'transparent',
+  border: `1rpx solid ${activeTheme.value.borderSubtle}`,
+}))
+const danmakuSpeedChipActiveStyle = computed(() => ({
+  background: activeTheme.value.primary,
+  border: `1rpx solid ${activeTheme.value.primary}`,
+}))
+const danmakuSpeedChipTextStyle = computed(() => ({
+  color: '#08110c',
+}))
+const activeVideoZoomStyle = computed(() => ({
+  transform: `scale(${zoomScale.value})`,
 }))
 const textPrimaryStyle = computed(() => ({ color: activeTheme.value.textPrimary }))
 const textSecondaryStyle = computed(() => ({ color: activeTheme.value.textSecondary }))
@@ -474,7 +517,7 @@ const infoStatsText = computed(() => {
     return ''
   }
 
-  return `Duration ${formatDuration(activeVideo.value.duration)} | Watched ${formatWatchTime(activeVideo.value.totalWatchTime)} | Plays ${activeVideo.value.playCount}`
+  return `时长 ${formatDuration(activeVideo.value.duration)} | 已看 ${formatWatchTime(activeVideo.value.totalWatchTime)} | 播放 ${activeVideo.value.playCount} 次`
 })
 const feedSignature = computed(() =>
   videos.value
@@ -541,6 +584,9 @@ watch(
 watch(
   () => playerStore.activeVideoId,
   async (videoId) => {
+    resetPinchZoom()
+    resetDanmaku()
+
     if (!videoId || !isPageVisible.value) {
       return
     }
@@ -587,6 +633,7 @@ onHide(() => {
   speedBoostVideoId.value = ''
   activeSheet.value = 'none'
   pauseAllVideos(playbackTargets.value)
+  resetDanmaku()
 })
 
 function activateVideo(videoId: string, index: number) {
@@ -597,6 +644,7 @@ function activateVideo(videoId: string, index: number) {
   }
   isActiveVideoPaused.value = false
   activeSheet.value = 'none'
+  resetDanmaku()
   clearPendingSingleTap()
   speedBoostVideoId.value = ''
   commentDraft.value = ''
@@ -697,6 +745,8 @@ function handleTimeUpdate(
     libraryStore.addWatchTime(videoId, delta)
   }
 
+  emitDanmakuForRange(videoId, previousTime, currentTime)
+
   watchProgress.value = {
     ...watchProgress.value,
     [videoId]: currentTime,
@@ -706,6 +756,11 @@ function handleTimeUpdate(
 
 function handleStageTap(videoId: string) {
   if (videoId !== activeVideoId.value) {
+    return
+  }
+
+  if (suppressTapAfterPinch.value) {
+    suppressTapAfterPinch.value = false
     return
   }
 
@@ -734,7 +789,12 @@ function handleStageTap(videoId: string) {
 }
 
 function handleStageLongPress(videoId: string) {
-  if (!gestures.value.longPressSpeed || videoId !== activeVideoId.value || isActiveVideoPaused.value) {
+  if (
+    !gestures.value.longPressSpeed ||
+    videoId !== activeVideoId.value ||
+    isActiveVideoPaused.value ||
+    pinchZoomVideoId.value === videoId
+  ) {
     return
   }
 
@@ -748,6 +808,13 @@ function handleStageLongPress(videoId: string) {
 }
 
 function handleStageTouchEnd(videoId: string) {
+  if (pinchZoomVideoId.value === videoId) {
+    pinchZoomVideoId.value = ''
+    pinchStartDistance.value = 0
+    pinchStartScale.value = zoomScale.value
+    suppressTapAfterPinch.value = true
+  }
+
   if (!gestures.value.longPressSpeed || speedBoostVideoId.value !== videoId) {
     return
   }
@@ -767,6 +834,105 @@ function togglePause(videoId: string) {
   } catch (error) {
     console.warn('Failed to toggle playback', error)
   }
+}
+
+function videoPlayerInlineStyle(videoId: string) {
+  if (videoId !== activeVideoId.value) {
+    return null
+  }
+
+  return activeVideoZoomStyle.value
+}
+
+function resetPinchZoom() {
+  zoomScale.value = 1
+  pinchStartDistance.value = 0
+  pinchStartScale.value = 1
+  pinchZoomVideoId.value = ''
+  suppressTapAfterPinch.value = false
+}
+
+function resetDanmaku() {
+  activeDanmakuItems.value = []
+  danmakuSequence.value = 0
+  danmakuLaneCursor.value = 0
+}
+
+function emitDanmakuForRange(videoId: string, previousTime: number, currentTime: number) {
+  if (videoId !== activeVideoId.value) {
+    return
+  }
+
+  if (currentTime <= 0 || currentTime < previousTime || currentTime - previousTime > 2.5) {
+    return
+  }
+
+  const matchedComments = commentsForVideo(videoId).filter(
+    (comment) => comment.timestamp > previousTime && comment.timestamp <= currentTime,
+  )
+
+  matchedComments.forEach((comment) => {
+    pushDanmaku(comment.content)
+  })
+}
+
+function pushDanmaku(content: string) {
+  const laneHeight = 72
+  const laneTop = 176 + (danmakuLaneCursor.value % 4) * laneHeight
+  const id = `danmaku_${Date.now()}_${danmakuSequence.value}`
+  const animationDuration =
+    danmakuSpeed.value === 'slow' ? '8.6s' : danmakuSpeed.value === 'fast' ? '4.8s' : '6.2s'
+
+  danmakuSequence.value += 1
+  danmakuLaneCursor.value = (danmakuLaneCursor.value + 1) % 4
+
+  activeDanmakuItems.value = [
+    ...activeDanmakuItems.value,
+    {
+      id,
+      content,
+      style: {
+        top: `${laneTop}rpx`,
+        animationDelay: '0s',
+        animationDuration,
+      },
+    },
+  ]
+
+  setTimeout(() => {
+    activeDanmakuItems.value = activeDanmakuItems.value.filter((item) => item.id !== id)
+  }, Number.parseFloat(animationDuration) * 1000)
+}
+
+function handleDanmakuSpeedChange(nextSpeed: 'slow' | 'normal' | 'fast') {
+  danmakuSpeed.value = nextSpeed
+}
+
+function getTouchDistance(touches: Array<{ clientX?: number; clientY?: number }>) {
+  if (touches.length < 2) {
+    return 0
+  }
+
+  const [firstTouch, secondTouch] = touches
+  const deltaX = Number(firstTouch.clientX || 0) - Number(secondTouch.clientX || 0)
+  const deltaY = Number(firstTouch.clientY || 0) - Number(secondTouch.clientY || 0)
+
+  return Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+}
+
+function normalizeTouchPoints(touches: TouchList | ArrayLike<Touch> | undefined) {
+  if (!touches) {
+    return []
+  }
+
+  return Array.from(touches).map((touch) => ({
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+  }))
+}
+
+function clampZoomScale(scale: number) {
+  return Math.min(2.5, Math.max(1, Number(scale.toFixed(3))))
 }
 
 function openSheet(type: 'info' | 'comments') {
@@ -803,6 +969,61 @@ function toggleLike(videoId: string) {
   libraryStore.toggleLike(videoId)
 }
 
+function handleStageTouchStart(
+  videoId: string,
+  event: TouchEvent,
+) {
+  if (videoId !== activeVideoId.value) {
+    return
+  }
+
+  const touches = normalizeTouchPoints(event.touches)
+
+  if (touches.length < 2) {
+    return
+  }
+
+  clearPendingSingleTap()
+  lastTapState.value = null
+  pinchZoomVideoId.value = videoId
+  pinchStartDistance.value = getTouchDistance(touches)
+  pinchStartScale.value = zoomScale.value
+
+  if (speedBoostVideoId.value === videoId) {
+    speedBoostVideoId.value = ''
+
+    try {
+      setVideoPlaybackRate(videoDomId(videoId), 1)
+    } catch (error) {
+      console.warn('Failed to reset speed boost for pinch zoom', error)
+    }
+  }
+}
+
+function handleStageTouchMove(
+  videoId: string,
+  event: TouchEvent,
+) {
+  if (pinchZoomVideoId.value !== videoId) {
+    return
+  }
+
+  const touches = normalizeTouchPoints(event.touches)
+
+  if (touches.length < 2 || pinchStartDistance.value <= 0) {
+    return
+  }
+
+  const nextDistance = getTouchDistance(touches)
+
+  if (!nextDistance) {
+    return
+  }
+
+  const nextScale = pinchStartScale.value * (nextDistance / pinchStartDistance.value)
+  zoomScale.value = clampZoomScale(nextScale)
+}
+
 function toggleFavorite(videoId: string) {
   libraryStore.toggleFavorite(videoId)
 }
@@ -822,6 +1043,7 @@ function handleSearchPlaceholder() {
   isSearchOpen.value = true
   pauseAllVideos(playbackTargets.value)
   isActiveVideoPaused.value = true
+  resetDanmaku()
 }
 
 function handleMenuPlaceholder() {
@@ -1412,6 +1634,43 @@ function handleFullscreenChange(
 .pause-indicator__label {
   margin-top: 12rpx;
   font-size: 22rpx;
+}
+
+.danmaku-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.danmaku-item {
+  position: absolute;
+  left: 0;
+  max-width: 72vw;
+  animation: danmaku-fly 6.2s linear forwards;
+}
+
+.danmaku-item__text {
+  color: rgba(255, 255, 255, 0.98);
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  text-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.45);
+}
+
+.video-player {
+  transform-origin: center center;
+  transition: transform 0.12s ease-out;
+}
+
+@keyframes danmaku-fly {
+  from {
+    transform: translateX(110vw);
+  }
+
+  to {
+    transform: translateX(-140vw);
+  }
 }
 
 .fullscreen-trigger {

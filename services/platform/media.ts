@@ -1,3 +1,7 @@
+type ChosenVideoFile = WechatMiniprogram.MediaFile & {
+  thumbTempFilePath?: string
+}
+
 export async function chooseVideos(options?: { count?: number }) {
   return new Promise<WechatMiniprogram.ChooseMediaSuccessCallbackResult>((resolve, reject) => {
     uni.chooseMedia({
@@ -10,12 +14,66 @@ export async function chooseVideos(options?: { count?: number }) {
   })
 }
 
-export function normalizeChosenVideos(result: WechatMiniprogram.ChooseMediaSuccessCallbackResult) {
-  return (result.tempFiles || []) as Array<
-    WechatMiniprogram.MediaFile & {
-      thumbTempFilePath?: string
-    }
-  >
+export async function chooseOriginalVideo() {
+  return new Promise<{
+    tempFilePath: string
+    size?: number
+    duration?: number
+    width?: number
+    height?: number
+    fileType?: string
+    thumbTempFilePath?: string
+  }>((resolve, reject) => {
+    uni.chooseVideo({
+      sourceType: ['album'],
+      compressed: false,
+      success: (result) =>
+        resolve({
+          tempFilePath: result.tempFilePath,
+          size: result.size,
+          duration: result.duration,
+          width: result.width,
+          height: result.height,
+          fileType: (result as { fileType?: string }).fileType,
+          thumbTempFilePath: (result as { thumbTempFilePath?: string }).thumbTempFilePath,
+        }),
+      fail: reject,
+    })
+  })
+}
+
+export function normalizeChosenVideos(
+  result:
+    | WechatMiniprogram.ChooseMediaSuccessCallbackResult
+    | {
+        tempFilePath: string
+        size?: number
+        duration?: number
+        width?: number
+        height?: number
+        fileType?: string
+        thumbTempFilePath?: string
+      },
+) {
+  if ('tempFiles' in result) {
+    return (result.tempFiles || []) as ChosenVideoFile[]
+  }
+
+  if (!result.tempFilePath) {
+    return []
+  }
+
+  return [
+    {
+      tempFilePath: result.tempFilePath,
+      size: result.size,
+      duration: result.duration,
+      width: result.width,
+      height: result.height,
+      thumbTempFilePath: result.thumbTempFilePath,
+      fileType: result.fileType || 'video',
+    },
+  ] as ChosenVideoFile[]
 }
 
 export function detectVideoImportHint(

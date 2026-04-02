@@ -10,13 +10,13 @@
         {{ favorited ? '\u5df2\u6536\u85cf' : '\u6536\u85cf' }}
       </text>
     </view>
-    <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('open-info')">
-      <text class="side-button__icon">{{ '\u25b6' }}</text>
-      <text class="side-button__text" :style="textPrimaryStyle">{{ playCount }}</text>
-    </view>
     <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('open-comments')">
       <text class="side-button__icon">{{ '\u8bc4' }}</text>
       <text class="side-button__text" :style="textPrimaryStyle">{{ commentCount }}</text>
+    </view>
+    <view class="side-button glass-panel" :style="panelStyle" @tap.stop="$emit('open-info')">
+      <text class="side-button__icon">{{ '\u24d8' }}</text>
+      <text class="side-button__text" :style="textPrimaryStyle">{{ playCount }}</text>
     </view>
   </view>
 </template>
@@ -54,6 +54,9 @@ defineEmits<{
   padding: 18rpx 12rpx;
   border-radius: 26rpx;
   text-align: center;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 .side-button__icon {

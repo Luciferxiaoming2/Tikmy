@@ -106,13 +106,13 @@
         导出当前分类、视频记录、评论和偏好为 JSON；导入时会追加到新的导入分类，并检测需要修复的视频源。
       </text>
       <view class="selection-grid">
-        <view class="selection-card selection-card--export glass-panel" :style="panelInlineStyle" @tap="handleExportBackup">
+        <view class="selection-card selection-card--export glass-panel" :style="panelInlineStyle" @tap="handleExportBackupTap">
           <text class="selection-card__title" :style="textPrimaryStyle">导出 JSON 备份</text>
           <text class="selection-card__copy" :style="textSecondaryStyle">
             {{ isBackupBusy ? backupBusyLabel : backupSummary }}
           </text>
-          <view class="selection-card__save-button" :style="[chipInlineStyle, activeCardStyle]" @tap.stop="handleSaveExportedBackup">
-            <text class="selection-card__save-button-text" :style="textPrimaryStyle">{{ '\u4fdd\u5b58' }}</text>
+          <view class="selection-card__save-button" :style="[chipInlineStyle, activeCardStyle]" @tap.stop="handleSendExportedBackup">
+            <text class="selection-card__save-button-text" :style="textPrimaryStyle">{{ '\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b' }}</text>
           </view>
         </view>
         <view class="selection-card glass-panel" :style="panelInlineStyle" @tap="handleImportBackup">
@@ -130,9 +130,9 @@
             v-if="false"
             class="backup-status__action"
             :style="[chipInlineStyle, activeCardStyle]"
-            @tap="handleSaveExportedBackup"
+            @tap="handleSendExportedBackup"
           >
-            <text class="backup-status__action-text" :style="textPrimaryStyle">{{ '\u4fdd\u5b58\u5230\u624b\u673a' }}</text>
+            <text class="backup-status__action-text" :style="textPrimaryStyle">{{ '\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b' }}</text>
           </view>
         <view
           v-if="brokenVideoCount"
@@ -323,6 +323,90 @@ function handleThemeTap(event: Event) {
 
   if (dataset?.themeId) {
     userStore.setTheme(dataset.themeId)
+  }
+}
+
+async function handleExportBackupTap() {
+  if (isBackupBusy.value) {
+    return
+  }
+
+  try {
+    backupBusyLabel.value = '\u6b63\u5728\u751f\u6210\u5907\u4efd'
+    const payload = createBackupPayload({
+      userSettings: userStore.settings,
+      categories: categories.value,
+      videos: videos.value,
+      comments: comments.value,
+    })
+    const result = await exportBackupFile(payload)
+
+    exportedBackupFilePath.value = result.filePath
+    exportedBackupFileName.value = result.fileName
+    backupStatus.value = `\u6700\u8fd1\u5bfc\u51fa\uff1a${result.fileName}`
+
+    uni.showModal({
+      title: '\u5907\u4efd\u5df2\u5bfc\u51fa',
+      content: '\u5df2\u751f\u6210 JSON \u5907\u4efd\u3002\u5982\u679c\u9700\u8981\u5bfc\u51fa\u5230\u5fae\u4fe1\u5916\u90e8\uff0c\u8bf7\u518d\u70b9\u51fb\u53f3\u4fa7\u201c\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b\u201d\u3002',
+      showCancel: false,
+    })
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : '\u5bfc\u51fa\u5907\u4efd\u5931\u8d25',
+      icon: 'none',
+    })
+  } finally {
+    backupBusyLabel.value = ''
+  }
+}
+
+async function handleSendExportedBackup() {
+  if (isBackupBusy.value) {
+    return
+  }
+
+  if (!exportedBackupFilePath.value) {
+    uni.showToast({
+      title: '\u8bf7\u5148\u5bfc\u51fa\u5907\u4efd',
+      icon: 'none',
+    })
+    return
+  }
+
+  try {
+    backupBusyLabel.value = '\u6b63\u5728\u51c6\u5907\u53d1\u9001\u5907\u4efd'
+    const result = await saveBackupFileToDevice(exportedBackupFilePath.value, exportedBackupFileName.value)
+
+    backupStatus.value =
+      result === 'saved-to-disk'
+        ? '\u5907\u4efd\u6587\u4ef6\u5df2\u4fdd\u5b58\u5230\u672c\u5730'
+        : '\u5df2\u8c03\u8d77\u5fae\u4fe1\u6587\u4ef6\u53d1\u9001\uff0c\u8bf7\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b\u540e\u518d\u4fdd\u5b58'
+
+    uni.showToast({
+      title:
+        result === 'saved-to-disk'
+          ? '\u5df2\u4fdd\u5b58'
+          : '\u8bf7\u53d1\u9001\u5230\u6587\u4ef6\u4f20\u8f93\u52a9\u624b',
+      icon: 'none',
+    })
+  } catch (error) {
+    const diagnostics = [
+      `path=${exportedBackupFilePath.value || 'empty'}`,
+      `name=${exportedBackupFileName.value || 'empty'}`,
+      `platform=${getSaveBackupPlatform()}`,
+      `share=${typeof wx !== 'undefined' && typeof wx.shareFileMessage === 'function'}`,
+      `saveToDisk=${typeof wx !== 'undefined' && typeof (wx as typeof wx & { saveFileToDisk?: unknown }).saveFileToDisk === 'function'}`,
+      `error=${formatSaveBackupError(error)}`,
+    ].join(' | ')
+
+    backupStatus.value = `\u53d1\u9001\u5931\u8d25\uff1a${diagnostics}`
+    console.error('[backup-share]', diagnostics, error)
+    uni.showToast({
+      title: '\u53d1\u9001\u5931\u8d25\uff0c\u8bf7\u67e5\u770b\u4e0b\u65b9\u72b6\u6001',
+      icon: 'none',
+    })
+  } finally {
+    backupBusyLabel.value = ''
   }
 }
 
@@ -761,7 +845,7 @@ function formatSaveBackupError(error: unknown) {
 
 .selection-card--export {
   position: relative;
-  padding-right: 168rpx;
+  padding-right: 280rpx;
 }
 
 .selection-card__title {
@@ -784,17 +868,19 @@ function formatSaveBackupError(error: unknown) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 104rpx;
+  max-width: 230rpx;
   min-height: 64rpx;
-  padding: 0 24rpx;
+  padding: 0 18rpx;
   border-radius: 9999rpx;
   border: 2rpx solid transparent;
   transform: translateY(-50%);
 }
 
 .selection-card__save-button-text {
-  font-size: 24rpx;
+  font-size: 20rpx;
   font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
 }
 
 .weight-card {

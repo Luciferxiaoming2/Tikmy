@@ -9,23 +9,51 @@
     </view>
 
     <text class="panel-copy" :style="textMutedStyle">{{ hint }}</text>
+
+    <view class="speed-row">
+      <text class="speed-row__label" :style="textMutedStyle">{{ '\u5f39\u5e55\u901f\u5ea6' }}</text>
+      <view class="speed-row__options">
+        <view
+          v-for="option in speedOptions"
+          :key="option.value"
+          class="speed-chip"
+          :style="option.value === danmakuSpeed ? activeChipStyle : inactiveChipStyle"
+          @tap="emit('change-danmaku-speed', option.value)"
+        >
+          <text class="speed-chip__text" :style="option.value === danmakuSpeed ? activeChipTextStyle : textMutedStyle">
+            {{ option.label }}
+          </text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   categoryName: string
   statsText: string
   hint: string
+  danmakuSpeed: 'slow' | 'normal' | 'fast'
   panelStyle: Record<string, string>
   textPrimaryStyle: Record<string, string>
   textSecondaryStyle: Record<string, string>
   textMutedStyle: Record<string, string>
+  activeChipStyle: Record<string, string>
+  inactiveChipStyle: Record<string, string>
+  activeChipTextStyle: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   (event: 'close'): void
+  (event: 'change-danmaku-speed', value: 'slow' | 'normal' | 'fast'): void
 }>()
+
+const speedOptions = [
+  { value: 'slow', label: '\u6162' },
+  { value: 'normal', label: '\u6807\u51c6' },
+  { value: 'fast', label: '\u5feb' },
+] as const
 </script>
 
 <style scoped lang="scss">
@@ -67,5 +95,39 @@ const emit = defineEmits<{
   margin-top: 18rpx;
   font-size: 22rpx;
   line-height: 1.7;
+}
+
+.speed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-top: 22rpx;
+}
+
+.speed-row__label {
+  font-size: 22rpx;
+}
+
+.speed-row__options {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.speed-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88rpx;
+  min-height: 56rpx;
+  padding: 0 18rpx;
+  border-radius: 9999rpx;
+  border: 1rpx solid transparent;
+}
+
+.speed-chip__text {
+  font-size: 22rpx;
+  line-height: 1;
 }
 </style>
