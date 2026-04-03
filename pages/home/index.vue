@@ -345,6 +345,7 @@ import { useCommentStore } from '@/stores/comments'
 import { useLibraryStore } from '@/stores/library'
 import { usePlayerStore } from '@/stores/player'
 import { useUserStore } from '@/stores/user'
+import { usePrivacyGuard } from '@/services/privacy-guard'
 import { getThemeOption } from '@/theme/presets'
 import type { VideoAsset } from '@/types/domain'
 
@@ -352,6 +353,7 @@ const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 const playerStore = usePlayerStore()
 const commentStore = useCommentStore()
+usePrivacyGuard()
 
 const { gestures, likeWeight, playbackCategoryId, playbackEndAction, playbackMode, theme } = storeToRefs(userStore)
 const { categories, videos } = storeToRefs(libraryStore)

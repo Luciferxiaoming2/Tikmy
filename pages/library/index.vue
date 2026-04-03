@@ -223,6 +223,7 @@ import { storeToRefs } from 'pinia'
 import CategoryGallerySheet from '@/components/business/library/CategoryGallerySheet.vue'
 import LibraryVideoDetailSheet from '@/components/business/library/LibraryVideoDetailSheet.vue'
 import { DEFAULT_CATEGORY_ID, FAVORITES_CATEGORY_ID } from '@/repositories/library'
+import { usePrivacyGuard } from '@/services/privacy-guard'
 import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
 import {
@@ -246,6 +247,7 @@ const categorySearchPlaceholder = '\u641c\u7d22\u5206\u7c7b'
 const categoryNamePlaceholder = '\u8f93\u5165\u5206\u7c7b\u540d'
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
+usePrivacyGuard()
 
 const { theme } = storeToRefs(userStore)
 const { categories, totalVideoCount, videos } = storeToRefs(libraryStore)

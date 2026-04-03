@@ -98,7 +98,7 @@
           />
         </view>
 
-        <view class="setting-item glass-panel" :style="panelInlineStyle">
+        <view v-if="false" class="setting-item glass-panel" :style="panelInlineStyle">
           <view class="setting-main">
             <text class="label" :style="textPrimaryStyle">生物识别占位</text>
             <text class="setting-subtitle" :style="textSecondaryStyle">
@@ -109,6 +109,24 @@
             :checked="useBiometrics"
             :color="activeTheme.primary"
             @change="handleBiometricChange"
+          />
+        </view>
+        <view class="setting-item glass-panel" :style="panelInlineStyle">
+          <view class="setting-main">
+            <text class="label" :style="textPrimaryStyle">{{ '\u9690\u79c1\u6a21\u5f0f' }}</text>
+            <text class="setting-subtitle" :style="textSecondaryStyle">
+              {{ '\u5f00\u542f\u540e\uff0c\u8fdb\u5165 MyTik \u6216\u4ece\u540e\u53f0\u56de\u5230\u524d\u53f0\u65f6\u90fd\u4f1a\u81ea\u52a8\u9501\u5b9a\u3002' }}
+            </text>
+            <view v-if="useBiometrics" class="setting-inline-actions">
+              <view class="setting-inline-chip" :style="chipInlineStyle" @tap="openPrivacyModeSheet">
+                <text class="setting-inline-chip__text" :style="textPrimaryStyle">{{ '\u4fee\u6539\u5bc6\u7801' }}</text>
+              </view>
+            </view>
+          </view>
+          <switch
+            :checked="useBiometrics"
+            :color="activeTheme.primary"
+            @change="handlePrivacyModeChange"
           />
         </view>
       </view>
@@ -160,6 +178,35 @@
       </view>
     </view>
 
+
+    <PrivacyModeSheet
+      v-if="isPrivacyModeSheetOpen"
+      :draft="privacyPasscodeDraft"
+      :confirm-draft="privacyPasscodeConfirmDraft"
+      :error-message="privacyPasscodeError"
+      :focus-draft="isPrivacyModeSheetOpen"
+      :show-password="showPrivacyPasscode"
+      :sheet-style="sheetInlineStyle"
+      :input-inline-style="{
+        background: activeTheme.surfaceHighest,
+        border: `1rpx solid ${activeTheme.borderSubtle}`,
+        color: activeTheme.textPrimary,
+      }"
+      :text-primary-style="textPrimaryStyle"
+      :text-secondary-style="textSecondaryStyle"
+      :text-muted-style="textMutedStyle"
+      :primary-action-style="{
+        background: activeTheme.primary,
+        border: `1rpx solid ${activeTheme.primary}`,
+        boxShadow: activeTheme.shadowSoft,
+      }"
+      :secondary-action-style="chipInlineStyle"
+      @close="closePrivacyModeSheet"
+      @submit="submitPrivacyModeSheet"
+      @update:draft="handlePrivacyPasscodeDraftUpdate"
+      @update:confirm-draft="handlePrivacyPasscodeConfirmUpdate"
+      @toggle-visibility="togglePrivacyPasscodeVisibility"
+    />
 
     <view v-if="isThemePickerOpen" class="sheet-mask" @tap="closeThemePicker" />
     <view v-if="isThemePickerOpen" class="theme-sheet glass-panel" :style="sheetInlineStyle">
@@ -216,6 +263,13 @@ import {
   revealBackupFile,
   saveBackupFileToDevice,
 } from '@/services/backup'
+import PrivacyModeSheet from '@/components/business/settings/PrivacyModeSheet.vue'
+import { usePrivacyGuard } from '@/services/privacy-guard'
+import {
+  comparePrivacyPasscodes,
+  normalizePrivacyPasscode,
+  validatePrivacyPasscode,
+} from '@/services/privacy-mode'
 import { useCommentStore } from '@/stores/comments'
 import { useLibraryStore } from '@/stores/library'
 import { useUserStore } from '@/stores/user'
@@ -228,10 +282,16 @@ const themeOptions = THEME_OPTIONS
 const userStore = useUserStore()
 const libraryStore = useLibraryStore()
 const commentStore = useCommentStore()
+usePrivacyGuard()
 const { categories, videos } = storeToRefs(libraryStore)
 const { comments } = storeToRefs(commentStore)
 const { gestures, likeWeight, playbackCategoryId, playbackEndAction, theme, useBiometrics } = storeToRefs(userStore)
 const isThemePickerOpen = ref(false)
+const isPrivacyModeSheetOpen = ref(false)
+const privacyPasscodeDraft = ref('')
+const privacyPasscodeConfirmDraft = ref('')
+const privacyPasscodeError = ref('')
+const showPrivacyPasscode = ref(false)
 const backupBusyLabel = ref('')
 const backupStatus = ref('')
 const brokenVideoIds = ref<string[]>([])
@@ -327,6 +387,86 @@ function handleGestureChange(event: Event) {
 function handlePlaybackEndActionChange(event: Event) {
   const detail = (event as Event & { detail?: { value?: boolean } }).detail
   userStore.setPlaybackEndAction(detail?.value ? 'loop' : 'next')
+}
+
+function handlePrivacyModeChange(event: Event) {
+  const detail = (event as Event & { detail?: { value?: boolean } }).detail
+
+  if (detail?.value) {
+    if (userStore.passcode) {
+      userStore.setUseBiometrics(true)
+      userStore.setUnlocked(true)
+      uni.showToast({
+        title: '\u9690\u79c1\u6a21\u5f0f\u5df2\u5f00\u542f',
+        icon: 'success',
+      })
+      return
+    }
+
+    openPrivacyModeSheet()
+    return
+  }
+
+  userStore.setUseBiometrics(false)
+  userStore.setUnlocked(true)
+  closePrivacyModeSheet()
+  uni.showToast({
+    title: '\u9690\u79c1\u6a21\u5f0f\u5df2\u5173\u95ed',
+    icon: 'none',
+  })
+}
+
+function openPrivacyModeSheet() {
+  privacyPasscodeDraft.value = ''
+  privacyPasscodeConfirmDraft.value = ''
+  privacyPasscodeError.value = ''
+  showPrivacyPasscode.value = false
+  isPrivacyModeSheetOpen.value = true
+}
+
+function closePrivacyModeSheet() {
+  isPrivacyModeSheetOpen.value = false
+  privacyPasscodeError.value = ''
+  showPrivacyPasscode.value = false
+}
+
+function handlePrivacyPasscodeDraftUpdate(value: string) {
+  privacyPasscodeDraft.value = normalizePrivacyPasscode(value)
+  privacyPasscodeError.value = ''
+}
+
+function handlePrivacyPasscodeConfirmUpdate(value: string) {
+  privacyPasscodeConfirmDraft.value = normalizePrivacyPasscode(value)
+  privacyPasscodeError.value = ''
+}
+
+function submitPrivacyModeSheet() {
+  const validationMessage = validatePrivacyPasscode(privacyPasscodeDraft.value)
+
+  if (validationMessage) {
+    privacyPasscodeError.value = validationMessage
+    return
+  }
+
+  const compareMessage = comparePrivacyPasscodes(privacyPasscodeDraft.value, privacyPasscodeConfirmDraft.value)
+
+  if (compareMessage) {
+    privacyPasscodeError.value = compareMessage
+    return
+  }
+
+  userStore.setPasscode(privacyPasscodeDraft.value)
+  userStore.setUseBiometrics(true)
+  userStore.setUnlocked(true)
+  closePrivacyModeSheet()
+  uni.showToast({
+    title: '\u9690\u79c1\u6a21\u5f0f\u5df2\u5f00\u542f',
+    icon: 'success',
+  })
+}
+
+function togglePrivacyPasscodeVisibility() {
+  showPrivacyPasscode.value = !showPrivacyPasscode.value
 }
 
 function toggleThemePicker() {
@@ -1007,6 +1147,26 @@ function formatSaveBackupError(error: unknown) {
   flex-direction: column;
   align-items: flex-end;
   gap: 8rpx;
+}
+
+.setting-inline-actions {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.setting-inline-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60rpx;
+  padding: 0 20rpx;
+  border-radius: 9999rpx;
+}
+
+.setting-inline-chip__text {
+  font-size: 22rpx;
+  font-weight: 600;
 }
 
 .label {

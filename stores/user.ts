@@ -52,6 +52,11 @@ export const useUserStore = defineStore('user', () => {
     isUnlocked.value = value
   }
 
+  function setPasscode(value: string) {
+    passcode.value = value
+    persistSettings()
+  }
+
   function setUseBiometrics(value: boolean) {
     useBiometrics.value = value
     persistSettings()
@@ -120,6 +125,7 @@ export const useUserStore = defineStore('user', () => {
     gestures,
     settings,
     setUnlocked,
+    setPasscode,
     setUseBiometrics,
     setTheme,
     setPlaybackCategory,
